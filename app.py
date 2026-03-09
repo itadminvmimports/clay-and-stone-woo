@@ -3,78 +3,87 @@ from dotenv import load_dotenv
 import os
 
 load_dotenv()
-print("API KEY FOUND:", os.getenv("ANTHROPIC_API_KEY") is not None)
+
+from supabase import create_client
+supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
+
+def get_products(category=None):
+    query = supabase.table("products").select("*").eq("active", True)
+    if category and category != "all":
+        query = query.eq("category", category)
+    result = query.execute()
+    return result.data
 app = Flask(__name__)
 
 # ─── Placeholder products until Supabase is connected ───────────────────────
-PRODUCTS = [
-    {
-        "id": 1,
-        "name": "Picasso Faces Vase",
-        "category": "statement",
-        "price": 1200,
-        "description": "A stunning large-format vase hand-painted with vivid cubist faces. Each piece is unique, crafted by artisans in Marrakech.",
-        "origin": "Marrakech, Morocco",
-        "image": "picasso_vase.jpg",
-        "dimensions": "24\" H x 8\" W",
-        "indoor_outdoor": "Indoor",
-    },
-    {
-        "id": 2,
-        "name": "Iridescent Dark Amphora",
-        "category": "glazed",
-        "price": 850,
-        "description": "A deep charcoal vase with iridescent glaze that shifts between green, purple and blue in different light.",
-        "origin": "Fes, Morocco",
-        "image": "dark_vase.jpg",
-        "dimensions": "20\" H x 7\" W",
-        "indoor_outdoor": "Indoor / Covered Outdoor",
-    },
-    {
-        "id": 3,
-        "name": "Tall Green Glazed Cylinder",
-        "category": "glazed",
-        "price": 650,
-        "description": "Tall cylindrical vase with rich forest green glaze over a textured cream body. Bold and architectural.",
-        "origin": "Safi, Morocco",
-        "image": "green_vase.jpg",
-        "dimensions": "36\" H x 10\" W",
-        "indoor_outdoor": "Indoor / Covered Outdoor",
-    },
-    {
-        "id": 4,
-        "name": "White Glazed Urn",
-        "category": "white",
-        "price": 780,
-        "description": "Elegant oversized urn in pure white glaze. Minimalist and versatile — a statement in any space.",
-        "origin": "Marrakech, Morocco",
-        "image": "white_urn.jpg",
-        "dimensions": "30\" H x 12\" W",
-        "indoor_outdoor": "Indoor",
-    },
-    {
-        "id": 5,
-        "name": "Terracotta Garden Urn",
-        "category": "terracotta",
-        "price": 320,
-        "description": "Traditional hand-thrown terracotta urn with rope-twist detail. Weather-resistant and timeless.",
-        "origin": "Ourika Valley, Morocco",
-        "image": "terracotta_urn.jpg",
-        "dimensions": "18\" H x 14\" W",
-        "indoor_outdoor": "Indoor / Outdoor",
-    },
-    {
-        "id": 6,
-        "name": "Berber Geometric Vessel",
-        "category": "berber",
-        "price": 420,
-        "description": "Ancient Berber geometric patterns etched into natural clay. A collector's piece with centuries of tradition.",
-        "origin": "Atlas Mountains, Morocco",
-        "image": "berber_vessel.jpg",
-        "dimensions": "14\" H x 10\" W",
-        "indoor_outdoor": "Indoor",
-    },
-]
+# PRODUCTS = [
+#     {
+#         "id": 1,
+#         "name": "Picasso Faces Vase",
+#         "category": "statement",
+#         "price": 1200,
+#         "description": "A stunning large-format vase hand-painted with vivid cubist faces. Each piece is unique, crafted by artisans in Marrakech.",
+#         "origin": "Marrakech, Morocco",
+#         "image": "picasso_vase.jpg",
+#         "dimensions": "24\" H x 8\" W",
+#         "indoor_outdoor": "Indoor",
+#     },
+#     {
+#         "id": 2,
+#         "name": "Iridescent Dark Amphora",
+#         "category": "glazed",
+#         "price": 850,
+#         "description": "A deep charcoal vase with iridescent glaze that shifts between green, purple and blue in different light.",
+#         "origin": "Fes, Morocco",
+#         "image": "dark_vase.jpg",
+#         "dimensions": "20\" H x 7\" W",
+#         "indoor_outdoor": "Indoor / Covered Outdoor",
+#     },
+#     {
+#         "id": 3,
+#         "name": "Tall Green Glazed Cylinder",
+#         "category": "glazed",
+#         "price": 650,
+#         "description": "Tall cylindrical vase with rich forest green glaze over a textured cream body. Bold and architectural.",
+#         "origin": "Safi, Morocco",
+#         "image": "green_vase.jpg",
+#         "dimensions": "36\" H x 10\" W",
+#         "indoor_outdoor": "Indoor / Covered Outdoor",
+#     },
+#     {
+#         "id": 4,
+#         "name": "White Glazed Urn",
+#         "category": "white",
+#         "price": 780,
+#         "description": "Elegant oversized urn in pure white glaze. Minimalist and versatile — a statement in any space.",
+#         "origin": "Marrakech, Morocco",
+#         "image": "white_urn.jpg",
+#         "dimensions": "30\" H x 12\" W",
+#         "indoor_outdoor": "Indoor",
+#     },
+#     {
+#         "id": 5,
+#         "name": "Terracotta Garden Urn",
+#         "category": "terracotta",
+#         "price": 320,
+#         "description": "Traditional hand-thrown terracotta urn with rope-twist detail. Weather-resistant and timeless.",
+#         "origin": "Ourika Valley, Morocco",
+#         "image": "terracotta_urn.jpg",
+#         "dimensions": "18\" H x 14\" W",
+#         "indoor_outdoor": "Indoor / Outdoor",
+#     },
+#     {
+#         "id": 6,
+#         "name": "Berber Geometric Vessel",
+#         "category": "berber",
+#         "price": 420,
+#         "description": "Ancient Berber geometric patterns etched into natural clay. A collector's piece with centuries of tradition.",
+#         "origin": "Atlas Mountains, Morocco",
+#         "image": "berber_vessel.jpg",
+#         "dimensions": "14\" H x 10\" W",
+#         "indoor_outdoor": "Indoor",
+#     },
+# ]
 
 CATEGORIES = {
     "all":       "All Pieces",
@@ -89,16 +98,13 @@ CATEGORIES = {
 
 @app.route("/")
 def index():
-    featured = PRODUCTS[:3]
+    featured = get_products()[:3]
     return render_template("index.html", featured=featured)
 
 @app.route("/products")
 def products():
     category = request.args.get("category", "all")
-    if category == "all":
-        filtered = PRODUCTS
-    else:
-        filtered = [p for p in PRODUCTS if p["category"] == category]
+    filtered = get_products(category)
     return render_template("products.html",
                            products=filtered,
                            categories=CATEGORIES,
@@ -106,10 +112,10 @@ def products():
 
 @app.route("/product/<int:product_id>")
 def product(product_id):
-    item = next((p for p in PRODUCTS if p["id"] == product_id), None)
-    if not item:
+    result = supabase.table("products").select("*").eq("id", product_id).execute()
+    if not result.data:
         return "Product not found", 404
-    return render_template("product.html", product=item)
+    return render_template("product.html", product=result.data[0])
 
 @app.route("/about")
 def about():
