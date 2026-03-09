@@ -25,17 +25,40 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 # bottom = 0.97  # get the full base
 
 
-filename   = "WhatsApp Image 2025-08-23 at 9.49.23 AM.jpeg"
-# --- CROP SETTINGS ---
-# Adjust these 4 values (0.0 to 1.0) to zero in on the vase you want
-# left, top, right, bottom as fractions of image size
-pad = 300  # increased to 300 to give more top room
-left   = 0.20
-right  = 0.72
-top    = 0.42
-bottom = 0.97
+# filename   = "WhatsApp Image 2025-08-23 at 9.49.23 AM.jpeg"
+# # --- CROP SETTINGS ---
+# # Adjust these 4 values (0.0 to 1.0) to zero in on the vase you want
+# # left, top, right, bottom as fractions of image size
+# pad = 300  # increased to 300 to give more top room
+# left   = 0.20
+# right  = 0.72
+# top    = 0.42
+# bottom = 0.97
+
+# filename = "WhatsApp Image 2025-11-19 at 12.25.54 PM.jpeg"
+# pad    = 300
+# left   = 0.25
+# top    = 0.00
+# right  = 0.75
+# bottom = 0.95
+# output = "white_urn.jpg"
 
 
+# filename = "2fd1509c-0c04-4e2f-bc6f-f1f322a4f1ac.jpg"
+# pad    = 300
+# left   = 0.00
+# top    = 0.05
+# right  = 0.55
+# bottom = 0.95
+# output = "berber_vessel.jpg"
+
+filename = "4545684b-27bc-4480-8936-c1f798faf94e.jpg"
+pad    = 300
+left   = 0.02
+top    = 0.00
+right  = 0.52
+bottom = 0.98
+output = "terracotta_amphora.jpg"
 
 # Load image
 img = Image.open(os.path.join(DATA_DIR, filename))
@@ -54,13 +77,14 @@ cropped  = padded.crop(crop_box)  # crop from padded, not img
 
 # Remove background
 remover = Remover()
-output = remover.process(cropped, type='rgba')
+result = remover.process(cropped, type='rgba')
 
 # Place on black background
-background = Image.new("RGB", output.size, (0, 0, 0))
-background.paste(output, mask=output.split()[3])
+background = Image.new("RGB", result.size, (0, 0, 0))
+background.paste(result, mask=result.split()[3])
 
 # Save
-output_path = os.path.join(OUTPUT_DIR, f"ext_{filename.replace(' ', '_')}")
+
+output_path = os.path.join(OUTPUT_DIR, f"{output}")
 background.save(output_path, quality=97)
 print(f"Saved to: {output_path}")
