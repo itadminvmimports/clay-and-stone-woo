@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+
+{% block title %}{{ product.name }} — Souk & Stone{% endblock %}
+
+{% block extra_styles %}
+.product-page {
+  padding-top: 80px;
+  min-height: 100vh;
+}
+.product-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: calc(100vh - 80px);
+}
+
+/* LEFT — image */
+.product-gallery {
+  position: sticky; top: 80px;
+  height: calc(100vh - 80px);
+  background: #0f0f0f;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.product-gallery img {
+  width: 100%; height: 100%;
+  object-fit: contain;
+  padding: 48px;
+}
+.product-gallery-placeholder {
+  font-size: 120px;
+  opacity: 0.4;
+}
+
+/* RIGHT — info */
+.product-info {
+  padding: 64px 56px 80px;
+  border-left: 1px solid rgba(201,169,110,0.1);
+}
+.product-breadcrumb {
+  font-size: 11px; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--muted);
+  margin-bottom: 32px;
+}
+.product-breadcrumb a {
+  color: var(--muted); text-decoration: none;
+}
+.product-breadcrumb a:hover { color: var(--gold); }
+.product-breadcrumb span { margin: 0 8px; }
+
+.product-origin-tag {
+  display: inline-block;
+  font-size: 10px; letter-spacing: 3px;
+  text-transform: uppercase; color: var(--gold);
+  border: 1px solid rgba(201,169,110,0.3);
+  padding: 4px 12px; margin-bottom: 20px;
+}
+.product-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 48px; font-weight: 300;
+  color: var(--cream); line-height: 1.1;
+  margin-bottom: 16px;
+}
+.product-price-tag {
+  font-size: 28px; color: var(--gold);
+  font-family: 'Cormorant Garamond', serif;
+  margin-bottom: 32px;
+}
+
+.divider {
+  border: none;
+  border-top: 1px solid rgba(201,169,110,0.15);
+  margin: 32px 0;
+}
+
+.product-description {
+  color: var(--text); line-height: 2;
+  font-size: 15px; margin-bottom: 32px;
+}
+
+/* Specs */
+.specs { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 32px; }
+.spec { background: rgba(255,255,255,0.03); padding: 16px; border: 1px solid rgba(201,169,110,0.1); }
+.spec-label {
+  font-size: 10px; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--muted);
+  margin-bottom: 6px;
+}
+.spec-value { font-size: 14px; color: var(--cream); }
+
+/* CTA */
+.cta-section { margin-top: 40px; }
+.btn-primary {
+  display: block; width: 100%;
+  padding: 16px; text-align: center;
+  background: var(--gold); color: var(--black);
+  border: none; cursor: pointer;
+  font-family: 'Jost', sans-serif;
+  font-size: 12px; letter-spacing: 3px;
+  text-transform: uppercase; margin-bottom: 12px;
+  transition: opacity 0.2s; text-decoration: none;
+}
+.btn-primary:hover { opacity: 0.85; }
+.btn-secondary {
+  display: block; width: 100%;
+  padding: 16px; text-align: center;
+  background: none;
+  border: 1px solid rgba(201,169,110,0.4);
+  color: var(--gold); cursor: pointer;
+  font-family: 'Jost', sans-serif;
+  font-size: 12px; letter-spacing: 3px;
+  text-transform: uppercase;
+  transition: all 0.2s; text-decoration: none;
+}
+.btn-secondary:hover {
+  background: rgba(201,169,110,0.08);
+}
+
+/* Inquiry modal */
+.modal-overlay {
+  display: none; position: fixed;
+  inset: 0; background: rgba(0,0,0,0.85);
+  z-index: 300; align-items: center; justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--dark);
+  border: 1px solid rgba(201,169,110,0.2);
+  padding: 48px; width: 480px; max-width: 90vw;
+}
+.modal h3 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 28px; color: var(--cream); margin-bottom: 8px;
+}
+.modal p { color: var(--muted); font-size: 13px; margin-bottom: 28px; }
+.modal input, .modal textarea {
+  width: 100%; background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(201,169,110,0.2);
+  color: var(--text); padding: 12px;
+  font-family: 'Jost', sans-serif; font-size: 13px;
+  margin-bottom: 12px; display: block;
+}
+.modal textarea { height: 100px; resize: vertical; }
+.modal-actions { display: flex; gap: 12px; margin-top: 8px; }
+.modal-close {
+  background: none; border: 1px solid rgba(201,169,110,0.2);
+  color: var(--muted); padding: 12px 24px; cursor: pointer;
+  font-family: 'Jost', sans-serif; font-size: 12px;
+  letter-spacing: 2px; text-transform: uppercase;
+}
+.modal-submit {
+  flex: 1; background: var(--gold); border: none;
+  color: var(--black); padding: 12px; cursor: pointer;
+  font-family: 'Jost', sans-serif; font-size: 12px;
+  letter-spacing: 2px; text-transform: uppercase;
+}
+{% endblock %}
+
+{% block content %}
+<div class="product-page">
+  <div class="product-layout">
+
+    <!-- LEFT: Image -->
+    <div class="product-gallery">
+      {% if product.image %}
+        <img src="/static/images/{{ product.image }}"
+             alt="{{ product.name }}"
+             onerror="this.outerHTML='<div class=\'product-gallery-placeholder\'>🏺</div>'">
+      {% else %}
+        <div class="product-gallery-placeholder">🏺</div>
+      {% endif %}
+    </div>
+
+    <!-- RIGHT: Info -->
+    <div class="product-info">
+      <div class="product-breadcrumb">
+        <a href="/products">Collection</a>
+        <span>›</span>
+        <span>{{ product.name }}</span>
+      </div>
+
+      <div class="product-origin-tag">{{ product.origin }}</div>
+      <h1 class="product-title">{{ product.name }}</h1>
+      <div class="product-price-tag">${{ product.price }}</div>
+
+      <hr class="divider">
+
+      <p class="product-description">{{ product.description }}</p>
+
+      <div class="specs">
+        <div class="spec">
+          <div class="spec-label">Dimensions</div>
+          <div class="spec-value">{{ product.dimensions }}</div>
+        </div>
+        <div class="spec">
+          <div class="spec-label">Use</div>
+          <div class="spec-value">{{ product.indoor_outdoor }}</div>
+        </div>
+        <div class="spec">
+          <div class="spec-label">Origin</div>
+          <div class="spec-value">{{ product.origin }}</div>
+        </div>
+        <div class="spec">
+          <div class="spec-label">Material</div>
+          <div class="spec-value">Hand-thrown ceramic</div>
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <div class="cta-section">
+        <button class="btn-primary" onclick="document.getElementById('inquiryModal').classList.add('open')">
+          Inquire About This Piece
+        </button>
+        <a href="tel:8583754556" class="btn-secondary">
+          Call Us — 858-375-4556
+        </a>
+      </div>
+
+      <hr class="divider">
+
+      <p style="font-size:12px; color:var(--muted); line-height:1.8;">
+        Each piece is one-of-a-kind. Slight variations in glaze, texture,
+        and form are a natural part of handcrafted pottery — and what makes
+        each piece unique. Available for viewing at our San Diego showroom.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- Inquiry Modal -->
+<div class="modal-overlay" id="inquiryModal">
+  <div class="modal">
+    <h3>Inquire About This Piece</h3>
+    <p>Interested in the {{ product.name }}? Leave your details and we'll be in touch.</p>
+    <input type="text" id="inq-name" placeholder="Your name">
+    <input type="email" id="inq-email" placeholder="Email address">
+    <input type="tel" id="inq-phone" placeholder="Phone (optional)">
+    <textarea id="inq-message" placeholder="Any questions or details about your space..."></textarea>
+    <div class="modal-actions">
+      <button class="modal-close" onclick="document.getElementById('inquiryModal').classList.remove('open')">Cancel</button>
+      <button class="modal-submit" onclick="submitInquiry()">Send Inquiry</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+async function submitInquiry() {
+  const name  = document.getElementById('inq-name').value;
+  const email = document.getElementById('inq-email').value;
+  if (!name || !email) {
+    alert('Please enter your name and email.');
+    return;
+  }
+  await fetch('/inquire', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name,
+      email,
+      phone:   document.getElementById('inq-phone').value,
+      message: document.getElementById('inq-message').value,
+      product: "{{ product.name }}"
+    })
+  });
+  document.getElementById('inquiryModal').classList.remove('open');
+  alert('Thank you! We\'ll be in touch within 24 hours.');
+}
+
+// Close modal on overlay click
+document.getElementById('inquiryModal').addEventListener('click', function(e) {
+  if (e.target === this) this.classList.remove('open');
+});
+</script>
+{% endblock %}

@@ -1,0 +1,106 @@
+# ── about.html ─────────────────────────────────────────────────────────────
+cat > "$TEMPLATES/about.html" << 'EOF'
+{% extends "base.html" %}
+
+{% block title %}Our Story — Souk & Stone{% endblock %}
+
+{% block extra_styles %}
+.about-hero {
+  padding: 160px 48px 80px;
+  max-width: 800px; margin: 0 auto; text-align: center;
+}
+.about-hero h1 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 56px; font-weight: 300; color: var(--cream);
+  margin-bottom: 24px; line-height: 1.2;
+}
+.about-hero p {
+  color: var(--muted); font-size: 16px;
+  line-height: 2; margin-bottom: 16px;
+}
+.about-body {
+  max-width: 720px; margin: 0 auto;
+  padding: 0 48px 80px;
+}
+.about-body h2 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 36px; font-weight: 300; color: var(--gold);
+  margin: 48px 0 16px;
+}
+.about-body p {
+  color: var(--muted); line-height: 2;
+  margin-bottom: 16px; font-size: 15px;
+}
+.visit-box {
+  background: var(--dark);
+  border: 1px solid rgba(201,169,110,0.2);
+  padding: 48px; margin: 48px 0;
+  text-align: center;
+}
+.visit-box h3 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 32px; color: var(--cream); margin-bottom: 24px;
+}
+.visit-box p { color: var(--muted); line-height: 2; }
+.visit-box a {
+  display: inline-block; margin-top: 24px;
+  padding: 12px 36px;
+  border: 1px solid var(--gold); color: var(--gold);
+  text-decoration: none; font-size: 11px;
+  letter-spacing: 3px; text-transform: uppercase;
+  transition: all 0.3s;
+}
+.visit-box a:hover { background: var(--gold); color: var(--black); }
+{% endblock %}
+
+{% block content %}
+<div class="about-hero">
+  <h1>Straight from the medina to your home</h1>
+  <p>
+    Every piece in our collection has been hand-selected during visits to
+    Morocco — chosen not just for beauty, but for the story it carries
+    and the hands that made it.
+  </p>
+</div>
+<div class="about-body">
+  <h2>How we source</h2>
+  <p>
+    We travel directly to the potters of Marrakech, Fes, Safi, and the
+    Atlas Mountain villages. We buy from families who have been working
+    clay for generations — not from wholesalers or middlemen.
+  </p>
+  <p>
+    This means every piece is genuinely handcrafted, genuinely Moroccan,
+    and genuinely unique. No two are exactly alike.
+  </p>
+  <h2>What we bring back</h2>
+  <p>
+    Our focus is pots and vases — from dramatic statement pieces like our
+    Picasso-style painted vases to humble terracotta garden urns that have
+    been made the same way for centuries. We look for pieces with character,
+    with texture, with a life already lived in them.
+  </p>
+  <h2>Our San Diego showroom</h2>
+  <p>
+    We're part of the Villa & Mission Imports family in San Diego —
+    Southern California's premier source for Mediterranean and Latin
+    architectural finishes. Come see the pieces in person. Touch them.
+    Understand their scale. Our team can help you find exactly the right
+    piece for your space.
+  </p>
+  <div class="visit-box" id="visit">
+    <h3>Visit the Showroom</h3>
+    <p>San Diego, CA</p>
+    <p>Monday – Saturday: 10:00am – 6:00pm PST</p>
+    <p>Sunday: By appointment</p>
+    <p style="margin-top:12px;">
+      <strong style="color:var(--gold);">858-375-4556</strong>
+    </p>
+    <a href="tel:8583754556">Call Us →</a>
+  </div>
+</div>
+{% endblock %}
+EOF
+
+echo "✅ Both templates created successfully"
+ls -la "$TEMPLATES"

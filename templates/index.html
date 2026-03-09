@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+
+{% block title %}Souk & Stone — Moroccan Artisan Pottery{% endblock %}
+
+{% block extra_styles %}
+.hero {
+  height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  position: relative; overflow: hidden;
+  background: radial-gradient(ellipse at center, #1a1208 0%, #0a0a0a 70%);
+}
+.hero-content {
+  text-align: center; z-index: 2; padding: 20px;
+  animation: fadeUp 1.2s ease;
+}
+.hero-eyebrow {
+  font-size: 11px; letter-spacing: 5px; text-transform: uppercase;
+  color: var(--gold); margin-bottom: 24px;
+}
+.hero-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(48px, 8vw, 96px);
+  font-weight: 300; line-height: 1.1;
+  color: var(--cream); margin-bottom: 24px;
+}
+.hero-title em { color: var(--gold); font-style: italic; }
+.hero-sub {
+  font-size: 14px; letter-spacing: 1px; color: var(--muted);
+  max-width: 400px; margin: 0 auto 40px; line-height: 1.8;
+}
+.hero-cta {
+  display: inline-block;
+  padding: 14px 40px;
+  border: 1px solid var(--gold);
+  color: var(--gold); text-decoration: none;
+  font-size: 11px; letter-spacing: 3px; text-transform: uppercase;
+  transition: all 0.3s;
+}
+.hero-cta:hover {
+  background: var(--gold); color: var(--black);
+}
+.hero-scroll {
+  position: absolute; bottom: 32px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px; letter-spacing: 3px;
+  color: var(--muted); text-transform: uppercase;
+  animation: bounce 2s infinite;
+}
+
+/* Featured */
+.featured { padding: 100px 48px; }
+.section-header { text-align: center; margin-bottom: 60px; }
+.section-eyebrow {
+  font-size: 11px; letter-spacing: 4px; color: var(--gold);
+  text-transform: uppercase; margin-bottom: 12px;
+}
+.section-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 42px; font-weight: 300; color: var(--cream);
+}
+.products-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px;
+  max-width: 1200px; margin: 0 auto;
+}
+.product-card {
+  position: relative; overflow: hidden;
+  background: var(--dark); cursor: pointer;
+  text-decoration: none;
+}
+.product-card:hover .product-img { transform: scale(1.05); }
+.product-img-wrap { height: 420px; overflow: hidden; background: #111; }
+.product-img {
+  width: 100%; height: 100%; object-fit: contain;
+  object-position: top;
+  transition: transform 0.6s ease;
+  filter: brightness(0.9);
+}
+.product-img-placeholder {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 64px; background: #111;
+}
+.product-info { padding: 24px 20px; }
+.product-origin {
+  font-size: 10px; letter-spacing: 2px; color: var(--gold);
+  text-transform: uppercase; margin-bottom: 6px;
+}
+.product-name {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 22px; color: var(--cream); margin-bottom: 8px;
+}
+.product-price { font-size: 14px; color: var(--muted); }
+
+/* Story strip */
+.story-strip {
+  padding: 100px 48px;
+  background: linear-gradient(135deg, #1a1208, #0a0a0a);
+  display: grid; grid-template-columns: 1fr 1fr; gap: 80px;
+  align-items: center; max-width: 1200px; margin: 0 auto;
+}
+.story-text h2 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 42px; font-weight: 300; color: var(--cream);
+  margin-bottom: 24px; line-height: 1.2;
+}
+.story-text p { color: var(--muted); line-height: 2; margin-bottom: 16px; }
+.story-text a {
+  color: var(--gold); text-decoration: none;
+  font-size: 12px; letter-spacing: 2px; text-transform: uppercase;
+  border-bottom: 1px solid rgba(201,169,110,0.3); padding-bottom: 2px;
+}
+.story-image {
+  height: 500px; background: #111;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 80px;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes bounce {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50%       { transform: translateX(-50%) translateY(8px); }
+}
+{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div class="hero-content">
+    <p class="hero-eyebrow">Handcrafted in Morocco · Curated for You</p>
+    <h1 class="hero-title">
+      Art born<br>from <em>ancient</em><br>hands
+    </h1>
+    <p class="hero-sub">
+      Each piece carries centuries of Moroccan craft tradition —
+      sourced directly from artisans in Marrakech, Fes, and the Atlas Mountains.
+    </p>
+    <a href="/products" class="hero-cta">Explore the Collection</a>
+  </div>
+  <div class="hero-scroll">Scroll ↓</div>
+</section>
+
+<section class="featured">
+  <div class="section-header">
+    <p class="section-eyebrow">Featured Pieces</p>
+    <h2 class="section-title">Recently Arrived</h2>
+  </div>
+  <div class="products-grid">
+    {% for product in featured %}
+    <a href="/product/{{ product.id }}" class="product-card">
+      <div class="product-img-wrap">
+        {% if product.image %}
+          <img src="/static/images/{{ product.image }}"
+               alt="{{ product.name }}"
+               class="product-img"
+               onerror="this.parentElement.innerHTML='<div class=\'product-img-placeholder\'>🏺</div>'">
+        {% else %}
+          <div class="product-img-placeholder">🏺</div>
+        {% endif %}
+      </div>
+      <div class="product-info">
+        <p class="product-origin">{{ product.origin }}</p>
+        <h3 class="product-name">{{ product.name }}</h3>
+        <p class="product-price">From ${{ product.price }}</p>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+
+<div style="text-align:center; padding: 0 0 80px;">
+  <a href="/products" class="hero-cta">View Full Collection</a>
+</div>
+
+<section style="padding: 0 48px 100px;">
+  <div class="story-strip">
+    <div class="story-text">
+      <h2>Straight from the souk to your space</h2>
+      <p>
+        We travel to Morocco to source directly from the potters themselves —
+        families who have been working clay for generations in the medinas of
+        Marrakech, Fes, and the mountain villages of the Atlas.
+      </p>
+      <p>
+        Every piece in our San Diego showroom has a story.
+        We know where it was made, who made it, and what tradition it carries.
+      </p>
+      <a href="/about">Our Story →</a>
+    </div>
+    <div class="story-image">🕌</div>
+  </div>
+</section>
+{% endblock %}
