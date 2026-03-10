@@ -4,10 +4,11 @@
 
 {% block extra_styles %}
 .hero {
+  padding-top: 80px;
   height: 100vh;
   display: flex; align-items: center; justify-content: center;
   position: relative; overflow: hidden;
-  background: radial-gradient(ellipse at center, #1a1208 0%, #0a0a0a 70%);
+  background: #faf8f5;
 }
 .hero-content {
   text-align: center; z-index: 2; padding: 20px;
@@ -21,7 +22,7 @@
   font-family: 'Cormorant Garamond', serif;
   font-size: clamp(48px, 8vw, 96px);
   font-weight: 300; line-height: 1.1;
-  color: var(--cream); margin-bottom: 24px;
+  color: #1a1a1a; margin-bottom: 24px;
 }
 .hero-title em { color: var(--gold); font-style: italic; }
 .hero-sub {
@@ -31,13 +32,13 @@
 .hero-cta {
   display: inline-block;
   padding: 14px 40px;
-  border: 1px solid var(--gold);
-  color: var(--gold); text-decoration: none;
+  border: 1px solid #1a1a1a;
+  color: #1a1a1a; text-decoration: none;
   font-size: 11px; letter-spacing: 3px; text-transform: uppercase;
   transition: all 0.3s;
 }
 .hero-cta:hover {
-  background: var(--gold); color: var(--black);
+  background: #1a1a1a; color: #faf8f5;
 }
 .hero-scroll {
   position: absolute; bottom: 32px; left: 50%;
@@ -47,8 +48,7 @@
   animation: bounce 2s infinite;
 }
 
-/* Featured */
-.featured { padding: 100px 48px; }
+.featured { padding: 100px 48px; background: #faf8f5; }
 .section-header { text-align: center; margin-bottom: 60px; }
 .section-eyebrow {
   font-size: 11px; letter-spacing: 4px; color: var(--gold);
@@ -56,61 +56,69 @@
 }
 .section-title {
   font-family: 'Cormorant Garamond', serif;
-  font-size: 42px; font-weight: 300; color: var(--cream);
+  font-size: 42px; font-weight: 300; color: #1a1a1a;
 }
 .products-grid {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;
   max-width: 1200px; margin: 0 auto;
 }
 .product-card {
-  position: relative; overflow: hidden;
-  background: var(--dark); cursor: pointer;
-  text-decoration: none;
+  overflow: hidden; background: #fff;
+  border: 1px solid rgba(26,26,26,0.1);
+  cursor: pointer; text-decoration: none;
+  transition: transform 0.3s, box-shadow 0.3s;
 }
-.product-card:hover .product-img { transform: scale(1.05); }
-.product-img-wrap { height: 420px; overflow: hidden; background: #111; }
+.product-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.08);
+}
+.product-img-wrap { height: 380px; overflow: hidden; background: #0a0a0a;}
 .product-img {
   width: 100%; height: 100%; object-fit: contain;
-  object-position: top;
+  object-position: center;
   transition: transform 0.6s ease;
-  filter: brightness(0.9);
 }
+.product-card:hover .product-img { transform: scale(1.04); }
 .product-img-placeholder {
   width: 100%; height: 100%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 64px; background: #111;
+  font-size: 64px; background: #f0ece4;
 }
-.product-info { padding: 24px 20px; }
+.product-info { padding: 20px; }
 .product-origin {
   font-size: 10px; letter-spacing: 2px; color: var(--gold);
   text-transform: uppercase; margin-bottom: 6px;
 }
 .product-name {
   font-family: 'Cormorant Garamond', serif;
-  font-size: 22px; color: var(--cream); margin-bottom: 8px;
+  font-size: 22px; color: #1a1a1a; margin-bottom: 8px;
 }
 .product-price { font-size: 14px; color: var(--muted); }
 
-/* Story strip */
-.story-strip {
+.story-section {
+  background: #f0ece4;
+  border-top: 1px solid rgba(26,26,26,0.1);
+  border-bottom: 1px solid rgba(26,26,26,0.1);
   padding: 100px 48px;
-  background: linear-gradient(135deg, #1a1208, #0a0a0a);
+}
+.story-strip {
   display: grid; grid-template-columns: 1fr 1fr; gap: 80px;
-  align-items: center; max-width: 1200px; margin: 0 auto;
+  align-items: center; max-width: 1100px; margin: 0 auto;
 }
 .story-text h2 {
   font-family: 'Cormorant Garamond', serif;
-  font-size: 42px; font-weight: 300; color: var(--cream);
+  font-size: 42px; font-weight: 300; color: #1a1a1a;
   margin-bottom: 24px; line-height: 1.2;
 }
-.story-text p { color: var(--muted); line-height: 2; margin-bottom: 16px; }
+.story-text p { color: var(--muted); line-height: 2; margin-bottom: 16px; font-size: 15px; }
 .story-text a {
-  color: var(--gold); text-decoration: none;
-  font-size: 12px; letter-spacing: 2px; text-transform: uppercase;
-  border-bottom: 1px solid rgba(201,169,110,0.3); padding-bottom: 2px;
+  color: #1a1a1a; text-decoration: none;
+  font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+  border-bottom: 1px solid #1a1a1a; padding-bottom: 2px;
 }
 .story-image {
-  height: 500px; background: #111;
+  height: 400px; background: #e8e0d4;
+  border: 1px solid rgba(26,26,26,0.1);
   display: flex; align-items: center; justify-content: center;
   font-size: 80px;
 }
@@ -154,7 +162,7 @@
           <img src="/static/images/{{ product.image }}"
                alt="{{ product.name }}"
                class="product-img"
-               onerror="this.parentElement.innerHTML='<div class=\'product-img-placeholder\'>🏺</div>'">
+               onerror="this.parentElement.innerHTML='<div class=product-img-placeholder>🏺</div>'">
         {% else %}
           <div class="product-img-placeholder">🏺</div>
         {% endif %}
@@ -169,11 +177,11 @@
   </div>
 </section>
 
-<div style="text-align:center; padding: 0 0 80px;">
+<div style="text-align:center; padding: 0 0 80px; background: #faf8f5;">
   <a href="/products" class="hero-cta">View Full Collection</a>
 </div>
 
-<section style="padding: 0 48px 100px;">
+<section class="story-section">
   <div class="story-strip">
     <div class="story-text">
       <h2>Straight from the souk to your space</h2>
