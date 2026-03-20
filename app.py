@@ -68,7 +68,7 @@ def inquire():
         "to": "asif.shakeel@gmail.com",
         "subject": f"New Inquiry — {product}",
         "html": f"""
-            <h2>New inquiry from Souk & Stone</h2>
+            <h2>New inquiry from Clay & Stone</h2>
             <p><strong>Product:</strong> {product}</p>
             <p><strong>Name:</strong> {name}</p>
             <p><strong>Email:</strong> {email}</p>
