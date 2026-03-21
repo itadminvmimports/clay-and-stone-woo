@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}Clay & Stone{% endblock %}</title>
+  <title>{% block title %}Souk & Stone{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
   <style>
@@ -74,7 +74,15 @@
 
     /* CHAT WIDGET */
     #chat-widget {
+      display: flex; flex-direction: column; align-items: center;
       position: fixed; bottom: 28px; right: 28px; z-index: 200;
+    }
+    #chat-label {
+      text-align: center;
+      font-size: 11px; letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
     }
     #chat-toggle {
       width: 56px; height: 56px; border-radius: 50%;
@@ -128,7 +136,7 @@
 <body>
 
 <nav>
-  <a href="/" class="nav-logo">Clay & Stone</a>
+  <a href="/" class="nav-logo">Souk & Stone</a>
   <ul class="nav-links">
     <li><a href="/products">Collection</a></li>
     <li><a href="/about">Our Story</a></li>
@@ -140,7 +148,7 @@
 
 <footer>
   <div>
-    <h4>Clay & Stone</h4>
+    <h4>Souk & Stone</h4>
     <p>Artisan pottery and vases<br>sourced directly from Morocco.</p>
   </div>
   <div>
@@ -163,14 +171,15 @@
   <div id="chat-box">
     <div id="chat-header">✦ Ask us anything</div>
     <div id="chat-messages">
-      <div class="msg bot">Welcome! Ask me about any of our Moroccan pieces — materials, dimensions, care, or styling ideas.</div>
+      <div class="msg bot">Welcome! Ask me about any of our collection — materials, dimensions, care, or styling ideas.</div>
     </div>
     <div id="chat-input-row">
       <input id="chat-input" type="text" placeholder="Ask a question...">
       <button id="chat-send">↑</button>
     </div>
   </div>
-  <button id="chat-toggle">✦</button>
+  <div id="chat-label">Chat with us</div>
+  <button id="chat-toggle">💬</button>
 </div>
 
 <script>
