@@ -75,14 +75,17 @@
     /* CHAT WIDGET */
     #chat-widget {
       display: flex; flex-direction: column; align-items: center;
+      width: 80px;
       position: fixed; bottom: 28px; right: 28px; z-index: 200;
     }
     #chat-label {
       text-align: center;
-      font-size: 11px; letter-spacing: 2px;
+      font-size: 10px;
+      letter-spacing: 1px;
       text-transform: uppercase;
       color: var(--muted);
-      margin-bottom: 8px;
+      margin-bottom: 6px;
+      white-space: nowrap;
     }
     #chat-toggle {
       width: 56px; height: 56px; border-radius: 50%;
