@@ -102,7 +102,15 @@
       box-shadow: 0 8px 40px rgba(0,0,0,0.1);
     }
     #chat-box.open { display: flex; flex-direction: column; }
+    #chat-close {
+      background: none; border: none; cursor: pointer;
+      color: var(--muted); font-size: 14px;
+      margin-left: auto; padding: 0 0 0 12px;
+      line-height: 1;
+    }
+    #chat-close:hover { color: var(--black); }
     #chat-header {
+      display: flex; align-items: center;
       padding: 14px 16px;
       background: var(--offwhite);
       border-bottom: 1px solid var(--border);
@@ -172,7 +180,7 @@
 <!-- AI Chat Widget -->
 <div id="chat-widget">
   <div id="chat-box">
-    <div id="chat-header">✦ Ask us anything</div>
+    <div id="chat-header">💬 Chat with us<button id="chat-close" onclick="document.getElementById('chat-box').classList.remove('open')">✕</button></div>
     <div id="chat-messages">
       <div class="msg bot">Welcome! Ask me about any of our collection — materials, dimensions, care, or styling ideas.</div>
     </div>
