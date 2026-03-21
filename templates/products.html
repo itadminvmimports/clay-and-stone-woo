@@ -1,5 +1,3 @@
-# ── products.html ──────────────────────────────────────────────────────────
-cat > "$TEMPLATES/products.html" << 'EOF'
 {% extends "base.html" %}
 
 {% block title %}Collection — Clay & Stone{% endblock %}
@@ -17,26 +15,55 @@ cat > "$TEMPLATES/products.html" << 'EOF'
 .collection-header p {
   color: var(--muted); font-size: 14px; letter-spacing: 1px;
 }
+
+/* Inline filters (original position) */
 .filters {
   display: flex; justify-content: center;
   gap: 8px; flex-wrap: wrap;
   padding: 0 48px 48px;
 }
+
+/* Sticky filter bar */
+.filters-sticky {
+  position: fixed;
+  top: 61px;
+  left: 0; width: 100%;
+  z-index: 90;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  display: flex; justify-content: center;
+  gap: 8px; flex-wrap: wrap;
+  padding: 12px 48px;
+  transform: translateY(-110%);
+  transition: transform 0.3s ease;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+}
+.filters-sticky.visible {
+  transform: translateY(0);
+}
+
 .filter-btn {
   padding: 8px 20px;
-  border: 1px solid rgba(201,169,110,0.25);
-  background: none; color: var(--muted);
+  border: 1px solid rgba(181,105,58,0.5);
+  background: none; color: #5a4f45;
   font-family: 'Jost', sans-serif;
   font-size: 11px; letter-spacing: 2px;
   text-transform: uppercase; cursor: pointer;
   text-decoration: none; transition: all 0.2s;
   border-radius: 2px;
+  white-space: nowrap;
 }
-.filter-btn:hover, .filter-btn.active {
+.filter-btn:hover {
   border-color: var(--gold);
   color: var(--gold);
-  background: rgba(201,169,110,0.08);
+  background: rgba(181,105,58,0.08);
 }
+.filter-btn.active {
+  border-color: var(--gold);
+  background: var(--gold);
+  color: #fff;
+}
+
 .products-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -93,11 +120,9 @@ cat > "$TEMPLATES/products.html" << 'EOF'
 {% endblock %}
 
 {% block content %}
-<div class="collection-header">
-  <h1>The Collection</h1>
-  <p>{{ products|length }} pieces available · San Diego showroom & online</p>
-</div>
-<div class="filters">
+
+<!-- Sticky filter bar (slides in when inline filters scroll out of view) -->
+<div class="filters-sticky" id="stickyFilters">
   {% for key, label in categories.items() %}
   <a href="/products?category={{ key }}"
      class="filter-btn {% if active == key %}active{% endif %}">
@@ -105,6 +130,22 @@ cat > "$TEMPLATES/products.html" << 'EOF'
   </a>
   {% endfor %}
 </div>
+
+<div class="collection-header">
+  <h1>The Collection</h1>
+  <p>{{ products|length }} pieces available · San Diego showroom & online</p>
+</div>
+
+<!-- Inline filters -->
+<div class="filters" id="inlineFilters">
+  {% for key, label in categories.items() %}
+  <a href="/products?category={{ key }}"
+     class="filter-btn {% if active == key %}active{% endif %}">
+    {{ label }}
+  </a>
+  {% endfor %}
+</div>
+
 <div class="products-grid">
   {% if products %}
     {% for product in products %}
@@ -133,4 +174,20 @@ cat > "$TEMPLATES/products.html" << 'EOF'
     <div class="no-results">No pieces found in this category.</div>
   {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  const sticky = document.getElementById('stickyFilters');
+  const inline = document.getElementById('inlineFilters');
+
+  const observer = new IntersectionObserver(
+    ([entry]) => {
+      sticky.classList.toggle('visible', !entry.isIntersecting);
+    },
+    { threshold: 0, rootMargin: '-61px 0px 0px 0px' }
+  );
+
+  observer.observe(inline);
+</script>
 {% endblock %}
