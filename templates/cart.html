@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Your Cart — Clay & Stone{% endblock %}
+{% block extra_styles %}
+.cart-page { padding: 140px 48px 80px; max-width: 900px; margin: 0 auto; }
+.cart-page h1 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 42px; font-weight: 300; margin-bottom: 40px;
+}
+.cart-table { width: 100%; border-collapse: collapse; }
+.cart-table th {
+  font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--muted); padding: 12px 0; border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+.cart-table td { padding: 20px 0; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.cart-row-img { width: 72px; height: 72px; object-fit: contain; background: var(--offwhite); margin-right: 16px; }
+.cart-row-name { font-family: 'Cormorant Garamond', serif; font-size: 18px; }
+.cart-row-price { color: var(--muted); font-size: 14px; }
+.cart-summary { margin-top: 40px; text-align: right; }
+.cart-summary-total {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 28px; margin-bottom: 24px;
+}
+.cart-summary-total span { color: var(--gold); }
+.empty-cart { text-align: center; padding: 80px 0; color: var(--muted); font-family: 'Cormorant Garamond', serif; font-size: 24px; }
+{% endblock %}
+{% block content %}
+<div class="cart-page">
+  <h1>Your Cart</h1>
+  {% if cart %}
+  <table class="cart-table">
+    <thead>
+      <tr>
+        <th colspan="2">Item</th>
+        <th>Price</th>
+        <th>Qty</th>
+        <th>Total</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in cart %}
+      <tr>
+        <td style="width:88px;">
+          {% if item.image %}
+            <img src="/static/images/{{ item.image }}" class="cart-row-img" alt="{{ item.name }}">
+          {% endif %}
+        </td>
+        <td><div class="cart-row-name">{{ item.name }}</div></td>
+        <td><div class="cart-row-price">${{ item.price }}</div></td>
+        <td><div class="cart-row-price">{{ item.qty }}</div></td>
+        <td><div class="cart-row-price">${{ item.price * item.qty }}</div></td>
+        <td>
+          <button onclick="removeItem({{ item.product_id }}); location.reload();"
+                  style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:11px;letter-spacing:1px;text-transform:uppercase;">
+            Remove
+          </button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="cart-summary">
+    <div class="cart-summary-total">Total: <span>${{ total }}</span></div>
+    <a href="/checkout" class="btn-checkout" style="display:inline-block;padding:14px 48px;background:var(--black);color:#fff;text-decoration:none;font-size:11px;letter-spacing:3px;text-transform:uppercase;">
+      Proceed to Checkout
+    </a>
+  </div>
+  {% else %}
+  <div class="empty-cart">
+    <p>Your cart is empty</p>
+    <a href="/products" style="display:inline-block;margin-top:24px;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--black);border-bottom:1px solid var(--black);text-decoration:none;">
+      Browse the Collection
+    </a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

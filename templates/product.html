@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ product.name }} — Clay & Stone{% endblock %}
+{% block title %}{{ product.name }} — Souk & Stone{% endblock %}
 
 {% block extra_styles %}
 .product-page {
@@ -208,7 +208,10 @@
       <hr class="divider">
 
       <div class="cta-section">
-        <button class="btn-primary" onclick="document.getElementById('inquiryModal').classList.add('open')">
+        <button class="btn-primary" onclick="addToCart({{ product.id }}, '{{ product.name }}', {{ product.price }}, '{{ product.image }}')">
+          Add to Cart
+        </button>
+        <button class="btn-secondary" onclick="document.getElementById('inquiryModal').classList.add('open')" style="margin-bottom:12px;">
           Inquire About This Piece
         </button>
         <a href="tel:8583754556" class="btn-secondary">

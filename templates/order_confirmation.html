@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Order Received — Clay & Stone{% endblock %}
+{% block extra_styles %}
+.confirmation-page {
+  padding: 160px 48px 80px; max-width: 600px;
+  margin: 0 auto; text-align: center;
+}
+.confirmation-page h1 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 48px; font-weight: 300; margin-bottom: 24px;
+}
+.confirmation-page p { color: var(--muted); line-height: 2; font-size: 15px; margin-bottom: 16px; }
+.confirmation-icon { font-size: 48px; margin-bottom: 24px; }
+{% endblock %}
+{% block content %}
+<div class="confirmation-page">
+  <div class="confirmation-icon">✦</div>
+  <h1>Order Received</h1>
+  <p>Thank you — we've received your order and sent a confirmation to your email.</p>
+  <p>We'll be in touch shortly to confirm shipping details and complete payment.</p>
+  <p style="font-size:13px;">
+    Clay & Stone — a collection of Villa & Mission Imports<br>
+    858-375-4556 · 1815 Morena Blvd, San Diego CA 92110
+  </p>
+  <a href="/products" style="display:inline-block;margin-top:32px;padding:14px 40px;border:1px solid var(--black);color:var(--black);text-decoration:none;font-size:11px;letter-spacing:3px;text-transform:uppercase;">
+    Continue Browsing
+  </a>
+</div>
+{% endblock %}

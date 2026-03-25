@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Checkout — Clay & Stone{% endblock %}
+{% block extra_styles %}
+.checkout-page { padding: 140px 48px 80px; max-width: 1000px; margin: 0 auto; }
+.checkout-page h1 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 42px; font-weight: 300; margin-bottom: 40px;
+}
+.checkout-grid { display: grid; grid-template-columns: 1fr 400px; gap: 60px; }
+.form-section h2 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 24px; font-weight: 300; margin-bottom: 24px;
+  padding-bottom: 12px; border-bottom: 1px solid var(--border);
+}
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.form-row.full { grid-template-columns: 1fr; }
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-group label { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+.form-group input {
+  padding: 12px 14px; border: 1px solid var(--border);
+  background: #fff; font-family: 'Jost', sans-serif;
+  font-size: 14px; color: var(--black); width: 100%;
+}
+.form-group input:focus { outline: none; border-color: var(--gold); }
+.payment-placeholder {
+  background: var(--offwhite);
+  border: 1px dashed rgba(181,105,58,0.4);
+  padding: 32px; text-align: center; margin: 24px 0;
+  border-radius: 2px;
+}
+.payment-placeholder p {
+  color: var(--muted); font-size: 13px; line-height: 1.8;
+}
+.payment-placeholder strong { color: var(--gold); }
+.order-summary { background: var(--offwhite); padding: 32px; }
+.order-summary h2 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 22px; font-weight: 300; margin-bottom: 24px;
+}
+.order-item { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.order-item-name { color: var(--black); }
+.order-item-price { color: var(--muted); }
+.order-total { display: flex; justify-content: space-between; padding: 20px 0 0; font-family: 'Cormorant Garamond', serif; font-size: 22px; }
+.order-total span:last-child { color: var(--gold); }
+.brand-note { font-size: 11px; color: var(--muted); margin-top: 24px; line-height: 1.8; border-top: 1px solid var(--border); padding-top: 16px; }
+{% endblock %}
+{% block content %}
+<div class="checkout-page">
+  <h1>Checkout</h1>
+  <div class="checkout-grid">
+    <div class="form-section">
+      <form method="POST">
+        <h2>Contact Information</h2>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Full Name</label>
+            <input type="text" name="name" required>
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" name="email" required>
+          </div>
+        </div>
+        <div class="form-row full">
+          <div class="form-group">
+            <label>Phone</label>
+            <input type="tel" name="phone">
+          </div>
+        </div>
+
+        <h2 style="margin-top:32px;">Shipping Address</h2>
+        <div class="form-row full">
+          <div class="form-group">
+            <label>Street Address</label>
+            <input type="text" name="address" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>City</label>
+            <input type="text" name="city" required>
+          </div>
+          <div class="form-group">
+            <label>State</label>
+            <input type="text" name="state" required>
+          </div>
+        </div>
+        <div class="form-row full">
+          <div class="form-group">
+            <label>ZIP Code</label>
+            <input type="text" name="zip" required>
+          </div>
+        </div>
+
+        <h2 style="margin-top:32px;">Payment</h2>
+        <div class="payment-placeholder">
+          <p><strong>Secure Payment Coming Soon</strong></p>
+          <p>We are finalizing our payment integration.<br>
+          Submit your order and we will contact you<br>
+          to complete payment securely.</p>
+        </div>
+
+        <button type="submit" class="btn-checkout" style="border:none;cursor:pointer;">
+          Place Order
+        </button>
+      </form>
+    </div>
+
+    <div class="order-summary">
+      <h2>Order Summary</h2>
+      {% for item in cart %}
+      <div class="order-item">
+        <span class="order-item-name">{{ item.name }} × {{ item.qty }}</span>
+        <span class="order-item-price">${{ item.price * item.qty }}</span>
+      </div>
+      {% endfor %}
+      <div class="order-total">
+        <span>Total</span>
+        <span>${{ total }}</span>
+      </div>
+      <div class="brand-note">
+        Clay & Stone is a collection of Villa & Mission Imports.<br>
+        Your statement will show Villa & Mission Imports.<br>
+        1815 Morena Blvd, San Diego CA 92110 · 858-375-4556
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

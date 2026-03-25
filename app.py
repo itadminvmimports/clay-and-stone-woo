@@ -202,6 +202,112 @@ def admin_toggle_product(product_id):
         supabase.table("products").update({"active": not current}).eq("id", product_id).execute()
     return redirect(url_for("admin_dashboard"))
 
+
+# ─── Cart ────────────────────────────────────────────────────────────────────
+
+@app.route("/cart/add", methods=["POST"])
+def cart_add():
+    data = request.json
+    cart = session.get("cart", [])
+    product_id = data.get("product_id")
+    # Check if already in cart
+    for item in cart:
+        if item["product_id"] == product_id:
+            item["qty"] += 1
+            session["cart"] = cart
+            return jsonify({"status": "ok", "cart": cart, "count": sum(i["qty"] for i in cart)})
+    cart.append({
+        "product_id": product_id,
+        "name":       data.get("name"),
+        "price":      data.get("price"),
+        "image":      data.get("image"),
+        "qty":        1
+    })
+    session["cart"] = cart
+    return jsonify({"status": "ok", "cart": cart, "count": sum(i["qty"] for i in cart)})
+
+@app.route("/cart/remove", methods=["POST"])
+def cart_remove():
+    data = request.json
+    cart = session.get("cart", [])
+    cart = [i for i in cart if i["product_id"] != data.get("product_id")]
+    session["cart"] = cart
+    return jsonify({"status": "ok", "cart": cart, "count": sum(i["qty"] for i in cart)})
+
+@app.route("/cart/update", methods=["POST"])
+def cart_update():
+    data = request.json
+    cart = session.get("cart", [])
+    for item in cart:
+        if item["product_id"] == data.get("product_id"):
+            item["qty"] = max(1, int(data.get("qty", 1)))
+    session["cart"] = cart
+    return jsonify({"status": "ok", "cart": cart, "count": sum(i["qty"] for i in cart)})
+
+@app.route("/cart")
+def cart():
+    cart = session.get("cart", [])
+    total = sum(i["price"] * i["qty"] for i in cart)
+    return render_template("cart.html", cart=cart, total=total)
+
+@app.route("/cart/count")
+def cart_count():
+    cart = session.get("cart", [])
+    return jsonify({"count": sum(i["qty"] for i in cart)})
+
+@app.route("/cart/data")
+def cart_data():
+    cart = session.get("cart", [])
+    return jsonify({"cart": cart})
+
+# ─── Checkout ────────────────────────────────────────────────────────────────
+
+@app.route("/checkout", methods=["GET", "POST"])
+def checkout():
+    cart = session.get("cart", [])
+    if not cart:
+        return redirect(url_for("products"))
+    total = sum(i["price"] * i["qty"] for i in cart)
+    if request.method == "POST":
+        # Store order in Supabase
+        order_data = {
+            "customer_name":  request.form.get("name"),
+            "customer_email": request.form.get("email"),
+            "customer_phone": request.form.get("phone"),
+            "address":        request.form.get("address"),
+            "city":           request.form.get("city"),
+            "state":          request.form.get("state"),
+            "zip":            request.form.get("zip"),
+            "items":          str(cart),
+            "total":          total,
+            "status":         "pending"
+        }
+        supabase.table("orders").insert(order_data).execute()
+        # Send confirmation email
+        import resend
+        resend.api_key = os.getenv("RESEND_API_KEY")
+        items_html = "".join(f"<li>{i['name']} x{i['qty']} — ${i['price'] * i['qty']}</li>" for i in cart)
+        resend.Emails.send({
+            "from":    "onboarding@resend.dev",
+            "to":      request.form.get("email"),
+            "subject": "Your Clay & Stone Order",
+            "html":    f"""
+                <h2>Thank you for your order!</h2>
+                <p>We'll be in touch to confirm shipping details.</p>
+                <ul>{items_html}</ul>
+                <p><strong>Total: ${total}</strong></p>
+                <p>Clay & Stone — a collection of Villa & Mission Imports<br>
+                1815 Morena Blvd, San Diego CA 92110 · 858-375-4556</p>
+            """
+        })
+        session["cart"] = []
+        return redirect(url_for("order_confirmation"))
+    return render_template("checkout.html", cart=cart, total=total)
+
+@app.route("/order-confirmation")
+def order_confirmation():
+    return render_template("order_confirmation.html")
+
 # ─── Run ─────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
