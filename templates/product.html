@@ -208,12 +208,7 @@
       <hr class="divider">
 
       <div class="cta-section">
-        <button class="btn-primary" onclick="addToCart({{ product.id }}, '{{ product.name }}', {{ product.price }}, '{{ product.image }}')">
-          Add to Cart
-        </button>
-        <button class="btn-secondary" onclick="document.getElementById('inquiryModal').classList.add('open')" style="margin-bottom:12px;">
-          Inquire About This Piece
-        </button>
+        {# Cart and inquiry buttons hidden until payment gateway is configured #}
         <a href="tel:8583754556" class="btn-secondary">
           Call Us — 858-375-4556
         </a>
