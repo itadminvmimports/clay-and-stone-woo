@@ -4,3 +4,4 @@ anthropic
 gunicorn
 resend
 supabaseboto3
+boto3
