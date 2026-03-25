@@ -3,5 +3,5 @@ python-dotenv
 anthropic
 gunicorn
 resend
-supabaseboto3
+supabase
 boto3
