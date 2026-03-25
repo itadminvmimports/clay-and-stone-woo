@@ -159,7 +159,7 @@
     <a href="/product/{{ product.id }}" class="product-card">
       <div class="product-img-wrap">
         {% if product.image %}
-          <img src="/static/images/{{ product.image }}"
+          <img src="{{ product.image | img_url }}"
                alt="{{ product.name }}"
                class="product-img"
                onerror="this.parentElement.innerHTML='<div class=product-img-placeholder>🏺</div>'">

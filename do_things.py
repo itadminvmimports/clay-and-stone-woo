@@ -1,14 +1,20 @@
 
-with open('app.py', 'r') as f:
-    content = f.read()
+from dotenv import load_dotenv
+load_dotenv(override=True)
+import os
+import boto3
+from botocore.client import Config
 
-# Remove the run block from middle
-run_block = "\n# ─── Run ─────────────────────────────────────────────────────────────────────\nif __name__ == \"__main__\":\n    app.run(debug=True, port=5000)\n"
-content = content.replace(run_block, "\n")
-
-# Append it at the very end
-content = content.rstrip() + "\n\n# ─── Run ─────────────────────────────────────────────────────────────────────\nif __name__ == \"__main__\":\n    app.run(debug=True, port=5000)\n"
-
-with open('app.py', 'w') as f:
-    f.write(content)
-print("Done")
+client = boto3.client(
+    's3',
+    endpoint_url="https://s3.us-east-005.backblazeb2.com",
+    aws_access_key_id=os.getenv("B2_KEY_ID"),
+    aws_secret_access_key=os.getenv("B2_APP_KEY"),
+    config=Config(signature_version='s3v4')
+)
+print("KEY:", os.getenv("B2_KEY_ID"))
+try:
+    response = client.list_buckets()
+    print("SUCCESS")
+except Exception as e:
+    print("ERROR:", e)

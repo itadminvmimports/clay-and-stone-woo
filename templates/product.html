@@ -162,7 +162,7 @@
     <!-- LEFT: Image -->
     <div class="product-gallery">
       {% if product.image %}
-        <img src="/static/images/{{ product.image }}"
+        <img src="{{ product.image | img_url }}"
              alt="{{ product.name }}"
              onerror="this.outerHTML='<div class=\'product-gallery-placeholder\'>🏺</div>'">
       {% else %}

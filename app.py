@@ -2,7 +2,33 @@ from flask import Flask, render_template, jsonify, request, session, redirect, u
 from dotenv import load_dotenv
 import os
 
-load_dotenv()
+load_dotenv(override=True)
+
+import boto3
+from botocore.client import Config
+
+def get_b2_client():
+    return boto3.client(
+        's3',
+        endpoint_url=f"https://s3.us-east-005.backblazeb2.com",
+        aws_access_key_id=os.getenv("B2_KEY_ID"),
+        aws_secret_access_key=os.getenv("B2_APP_KEY"),
+        config=Config(signature_version='s3v4')
+    )
+
+def upload_to_b2(file, filename):
+    client = get_b2_client()
+    bucket = os.getenv("B2_BUCKET_NAME", "clay-and-stone-images")
+    print("BUCKET:", bucket)
+    client.upload_fileobj(
+        file,
+        bucket,
+        filename,
+        ExtraArgs={'ContentType': file.content_type}
+    )
+    url = f"{os.getenv('B2_BUCKET_URL')}/{filename}"
+    print("UPLOADED URL:", url)
+    return url
 
 from supabase import create_client
 supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
@@ -16,6 +42,14 @@ def get_products(category=None):
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret-change-me")
+
+@app.template_filter('img_url')
+def img_url_filter(image):
+    if not image:
+        return ''
+    if image.startswith('http'):
+        return image
+    return f'/static/images/{image}'
 
 CATEGORIES = {
     "all":        "All Pieces",
@@ -144,13 +178,21 @@ def admin_dashboard():
 @admin_required
 def admin_new_product():
     if request.method == "POST":
+        # Handle image upload to B2
+        image_value = request.form.get("image", "")
+        file = request.files.get("image_file")
+        if file and file.filename:
+            import uuid
+            ext = file.filename.rsplit(".", 1)[-1].lower()
+            filename = f"{uuid.uuid4().hex}.{ext}"
+            image_value = upload_to_b2(file, filename)
         data = {
             "name":           request.form.get("name"),
             "category":       request.form.get("category"),
             "price": int(float(request.form.get("price", 0))),
             "description":    request.form.get("description"),
             "origin":         request.form.get("origin"),
-            "image":          request.form.get("image"),
+            "image":          image_value,
             "dimensions":     request.form.get("dimensions"),
             "indoor_outdoor": request.form.get("indoor_outdoor"),
             "active":         request.form.get("active") == "on",
@@ -165,13 +207,21 @@ def admin_new_product():
 @admin_required
 def admin_edit_product(product_id):
     if request.method == "POST":
+        # Handle image upload to B2
+        image_value = request.form.get("image", "")
+        file = request.files.get("image_file")
+        if file and file.filename:
+            import uuid
+            ext = file.filename.rsplit(".", 1)[-1].lower()
+            filename = f"{uuid.uuid4().hex}.{ext}"
+            image_value = upload_to_b2(file, filename)
         data = {
             "name":           request.form.get("name"),
             "category":       request.form.get("category"),
             "price": int(float(request.form.get("price", 0))),
             "description":    request.form.get("description"),
             "origin":         request.form.get("origin"),
-            "image":          request.form.get("image"),
+            "image":          image_value,
             "dimensions":     request.form.get("dimensions"),
             "indoor_outdoor": request.form.get("indoor_outdoor"),
             "active":         request.form.get("active") == "on",
@@ -185,9 +235,23 @@ def admin_edit_product(product_id):
 
 # ─── Admin: Delete Product ───────────────────────────────────────────────────
 
+
 @app.route("/admin/product/<int:product_id>/delete", methods=["POST"])
 @admin_required
 def admin_delete_product(product_id):
+    result = supabase.table("products").select("image").eq("id", product_id).execute()
+    if result.data:
+        image = result.data[0].get("image", "")
+        if image and image.startswith("http"):
+            try:
+                filename = image.split("/")[-1]
+                client = get_b2_client()
+                client.delete_object(
+                    Bucket=os.getenv("B2_BUCKET_NAME", "clay-and-stone-images"),
+                    Key=filename
+                )
+            except Exception as e:
+                pass
     supabase.table("products").delete().eq("id", product_id).execute()
     return redirect(url_for("admin_dashboard"))
 
