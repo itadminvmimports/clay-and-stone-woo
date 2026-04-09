@@ -5,3 +5,6 @@ gunicorn
 resend
 supabase
 boto3
+voyageai
+requests
+urllib3
