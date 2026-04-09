@@ -1,44 +1,124 @@
-from flask import Flask, render_template, jsonify, request, session, redirect, url_for, flash
+from flask import Flask, render_template, jsonify, request, session, redirect, url_for
 from dotenv import load_dotenv
+import base64
 import os
+import re
+import json
+import hmac
+import hashlib
+import logging
+import requests
+import urllib3
 
-load_dotenv(override=True)
+urllib3.disable_warnings()
 
-import boto3
-from botocore.client import Config
+load_dotenv()
 
-def get_b2_client():
-    return boto3.client(
-        's3',
-        endpoint_url=f"https://s3.us-east-005.backblazeb2.com",
-        aws_access_key_id=os.getenv("B2_KEY_ID"),
-        aws_secret_access_key=os.getenv("B2_APP_KEY"),
-        config=Config(signature_version='s3v4')
-    )
-
-def upload_to_b2(file, filename):
-    client = get_b2_client()
-    bucket = os.getenv("B2_BUCKET_NAME", "clay-and-stone-images")
-    print("BUCKET:", bucket)
-    client.upload_fileobj(
-        file,
-        bucket,
-        filename,
-        ExtraArgs={'ContentType': file.content_type}
-    )
-    url = f"{os.getenv('B2_BUCKET_URL')}/{filename}"
-    print("UPLOADED URL:", url)
-    return url
+import voyageai
+vo = voyageai.Client(api_key=os.getenv("VOYAGE_API_KEY"))
 
 from supabase import create_client
 supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 
+WC_URL    = os.getenv("WC_URL")
+WC_KEY    = os.getenv("WC_KEY")
+WC_SECRET = os.getenv("WC_SECRET")
+WP_USER   = os.getenv("WP_USER")
+WP_PASS   = os.getenv("WP_APP_PASSWORD")
+
+# ─── WooCommerce Helpers ──────────────────────────────────────────────────────
+
+def wc_get(endpoint, params={}):
+    p = dict(params)
+    p.update({"consumer_key": WC_KEY, "consumer_secret": WC_SECRET})
+    r = requests.get(
+        f"{WC_URL}/wp-json/wc/v3/{endpoint}",
+        params=p,
+        
+    )
+    result = r.json()
+    if isinstance(result, dict) and result.get("code"):
+        print(f"WC API error: {result}")
+        return []
+    return result
+
+def wc_post(endpoint, data):
+    r = requests.post(
+        f"{WC_URL}/wp-json/wc/v3/{endpoint}",
+        params={"consumer_key": WC_KEY, "consumer_secret": WC_SECRET},
+        json=data,
+        
+    )
+    result = r.json()
+    if isinstance(result, dict) and result.get("code"):
+        print(f"WC API error: {result}")
+        return None
+    return result
+
+def get_meta(meta_data, key):
+    return next((m["value"] for m in meta_data if m["key"] == key), "")
+
+def normalize_product(p):
+    description = re.sub(r"<[^>]+>", "", p.get("description") or p.get("short_description", "")).strip()
+    # LOCAL DEV ONLY — remove image proxy line before Kinsta deploy,
+    # replace with: image = p["images"][0]["src"] if p.get("images") else ""
+    image = p["images"][0]["src"] if p.get("images") else ""
+    return {
+        "id":             p["id"],
+        "name":           p["name"],
+        "price":          int(float(p["regular_price"])) if p.get("regular_price") else 0,
+        "description":    description,
+        "image":          image,
+        "stock":          p.get("stock_quantity"),
+        "active":         p.get("status") == "publish",
+        "category":       p["categories"][0]["slug"] if p.get("categories") else "all",
+        "origin":         get_meta(p.get("meta_data", []), "origin"),
+        "dimensions":     get_meta(p.get("meta_data", []), "dimensions"),
+        "indoor_outdoor": get_meta(p.get("meta_data", []), "indoor_outdoor"),
+    }
+
 def get_products(category=None):
-    query = supabase.table("products").select("*").eq("active", True).order("id")
+    params = {"per_page": 100, "status": "publish"}
+
+    # Always scope to Clay & Stone category on VM WooCommerce
+    cs_cats = wc_get("products/categories", {"slug": "clay-and-stone"})
+    if cs_cats and isinstance(cs_cats, list):
+        params["category"] = cs_cats[0]["id"]
+
+    # Sub-category filter on top
     if category and category != "all":
-        query = query.eq("category", category)
-    result = query.execute()
-    return result.data
+        sub_cats = wc_get("products/categories", {"slug": category})
+        if sub_cats and isinstance(sub_cats, list):
+            params["category"] = sub_cats[0]["id"]
+
+    return [normalize_product(p) for p in wc_get("products", params)]
+
+# ─── Embedding Helper ─────────────────────────────────────────────────────────
+
+def build_embedding_content(p):
+    description = re.sub(r"<[^>]+>", "", p.get("description") or p.get("short_description") or "").strip()
+    return f"""Product: {p['name']}
+Category: {p['categories'][0]['name'] if p.get('categories') else ''}
+Price: ${p.get('regular_price', '')}
+Origin: {get_meta(p.get('meta_data', []), 'origin')}
+Dimensions: {get_meta(p.get('meta_data', []), 'dimensions')}
+Use: {get_meta(p.get('meta_data', []), 'indoor_outdoor')}
+Stock: {p.get('stock_quantity') if p.get('stock_quantity') is not None else 'available'}
+Description: {description}"""
+
+def embed_and_store(p):
+    content   = build_embedding_content(p)
+    result    = vo.embed([content], model="voyage-3-lite")
+    embedding = result.embeddings[0]
+    supabase.table("product_embeddings_woo").upsert({
+        "product_id":   p["id"],
+        "product_name": p["name"],
+        "content":      content,
+        "embedding":    embedding,
+    }, on_conflict="product_id").execute()
+    print(f"Embedded: {p['name']}")
+
+# ─── App ──────────────────────────────────────────────────────────────────────
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret-change-me")
@@ -47,89 +127,127 @@ app.secret_key = os.getenv("SECRET_KEY", "dev-secret-change-me")
 def img_url_filter(image):
     if not image:
         return ''
-    if image.startswith('http'):
+    if image.startswith('http') or image.startswith('/'):
         return image
     return f'/static/images/{image}'
 
-CATEGORIES = {
-    "all":        "All Pieces",
-    "statement":  "Statement Vases",
-    "glazed":     "Glazed Ceramic",
-    "white":      "White Urns",
-    "terracotta": "Terracotta & Garden",
-    "berber":     "Berber Collection",
-}
+# CATEGORIES = {
+#     "all":        "All Pieces",
+#     "statement":  "Statement Vases",
+#     "glazed":     "Glazed Ceramic",
+#     "white":      "White Urns",
+#     "terracotta": "Terracotta & Garden",
+#     "berber":     "Berber Collection",
+#     "fountain":   "Fountains",
+# }
 
-# ─── Public Routes ───────────────────────────────────────────────────────────
+import html
+
+def get_categories():
+    cats = wc_get("products/categories", {
+        "parent": 250,
+        "per_page": 100,
+        "orderby": "name",
+        "order": "asc"
+    })
+    result = {"all": "All Pieces"}
+    if isinstance(cats, list):
+        for c in cats:
+            result[c["slug"]] = html.unescape(c["name"])
+    return result
+
+
+# ─── Public Routes ────────────────────────────────────────────────────────────
 
 @app.route("/")
 def index():
-    featured = get_products()[:3]
-    return render_template("index.html", featured=featured)
+    return render_template("index.html", featured=get_products()[:3])
 
+# @app.route("/products")
+# def products():
+#     category = request.args.get("category", "all")
+#     return render_template("products.html",
+#                            products=get_products(category),
+#                            categories=CATEGORIES,
+#                            active=category)
 @app.route("/products")
 def products():
     category = request.args.get("category", "all")
-    filtered = get_products(category)
+    categories = get_categories()
     return render_template("products.html",
-                           products=filtered,
-                           categories=CATEGORIES,
+                           products=get_products(category),
+                           categories=categories,
                            active=category)
+
 
 @app.route("/product/<int:product_id>")
 def product(product_id):
-    result = supabase.table("products").select("*").eq("id", product_id).execute()
-    if not result.data:
+    p = wc_get(f"products/{product_id}")
+    if not p or "id" not in p:
         return "Product not found", 404
-    return render_template("product.html", product=result.data[0])
+    return render_template("product.html", product=normalize_product(p))
 
 @app.route("/about")
 def about():
     return render_template("about.html")
 
+# ─── Inquiry ──────────────────────────────────────────────────────────────────
+
 @app.route("/inquire", methods=["POST"])
 def inquire():
     import resend
     resend.api_key = os.getenv("RESEND_API_KEY")
-    data    = request.json
-    name    = data.get("name", "")
-    email   = data.get("email", "")
-    phone   = data.get("phone", "")
-    message = data.get("message", "")
-    product = data.get("product", "")
+    data = request.json
     resend.Emails.send({
-        "from": "onboarding@resend.dev",
-        "to": "asif.shakeel@gmail.com",
-        "subject": f"New Inquiry — {product}",
-        "html": f"""
+        "from":    "orders@claynstone.com",
+        "to":      os.getenv("INQUIRY_EMAIL", "asif.shakeel@gmail.com"),
+        "subject": f"New Inquiry — {data.get('product', '')}",
+        "html":    f"""
             <h2>New inquiry from Clay & Stone</h2>
-            <p><strong>Product:</strong> {product}</p>
-            <p><strong>Name:</strong> {name}</p>
-            <p><strong>Email:</strong> {email}</p>
-            <p><strong>Phone:</strong> {phone}</p>
-            <p><strong>Message:</strong> {message}</p>
+            <p><strong>Product:</strong> {data.get('product', '')}</p>
+            <p><strong>Name:</strong> {data.get('name', '')}</p>
+            <p><strong>Email:</strong> {data.get('email', '')}</p>
+            <p><strong>Phone:</strong> {data.get('phone', '')}</p>
+            <p><strong>Message:</strong> {data.get('message', '')}</p>
         """
     })
     return jsonify({"status": "ok"})
+
+# ─── Chat (RAG) ───────────────────────────────────────────────────────────────
 
 @app.route("/chat", methods=["POST"])
 def chat():
     import anthropic
     data     = request.json
     messages = data.get("messages", [])
-    client   = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-    system   = """You are a knowledgeable assistant for a Moroccan pottery boutique 
-in San Diego. You help customers with:
-- Product questions (indoor/outdoor use, dimensions, care, sealing)
-- Style recommendations based on their space
-- Origin and cultural context of pieces
-- Pricing and availability inquiries
-- Arranging visits to the store
+    query    = messages[-1]["content"] if messages else ""
 
-Be warm, knowledgeable, and inspiring. Keep responses concise.
-If asked about pricing, direct them to the product page or suggest contacting the store.
-Store hours: Mon-Sat 10am-6pm PST. Located in San Diego, CA.
-Respond in plain conversational sentences. No bullet points, no bold text, no headers, no emojis. Just warm, natural conversation like a knowledgeable shopkeeper."""
+    result    = vo.embed([query], model="voyage-3-lite")
+    embedding = result.embeddings[0]
+
+    result = supabase.rpc("match_products_woo", {
+        "query_embedding": embedding,
+        "match_count": 3
+    }).execute()
+
+    relevant        = result.data if result.data else []
+    product_context = "\n\n".join([p["content"] for p in relevant])
+
+    client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+    system = f"""You are a knowledgeable assistant for Clay & Stone, a Moroccan pottery boutique in San Diego.
+
+Relevant pieces from our current collection:
+{product_context}
+
+Keep responses concise — 2-3 sentences max unless the customer asks for more detail.
+Be specific and accurate about dimensions, price, origin and stock.
+Never use words like "affordable", "budget", "cheap", or "expensive" unless the customer brings up price first.
+Present each piece on its own merits — don't compare prices unless asked.
+If stock is 0 suggest they call us.
+Store hours: Mon-Sat 10am-6pm. 1815 Morena Blvd, San Diego CA 92110. Tel: 858-375-4556.
+Respond in the same language the customer uses.
+No bullet points, no bold, no emojis."""
+
     response = client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=500,
@@ -138,157 +256,27 @@ Respond in plain conversational sentences. No bullet points, no bold text, no he
     )
     return jsonify({"reply": response.content[0].text})
 
-# ─── Admin: Auth ─────────────────────────────────────────────────────────────
-
-def admin_required(f):
-    from functools import wraps
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if not session.get("admin"):
-            return redirect(url_for("admin_login"))
-        return f(*args, **kwargs)
-    return decorated
-
-@app.route("/admin/login", methods=["GET", "POST"])
-def admin_login():
-    error = None
-    if request.method == "POST":
-        if request.form.get("password") == os.getenv("ADMIN_PASSWORD", "admin123"):
-            session["admin"] = True
-            return redirect(url_for("admin_dashboard"))
-        error = "Incorrect password"
-    return render_template("admin_login.html", error=error)
-
-@app.route("/admin/logout")
-def admin_logout():
-    session.pop("admin", None)
-    return redirect(url_for("admin_login"))
-
-# ─── Admin: Dashboard ────────────────────────────────────────────────────────
-
-@app.route("/admin")
-@admin_required
-def admin_dashboard():
-    all_products = supabase.table("products").select("*").order("created_at", desc=True).execute().data
-    return render_template("admin.html", products=all_products, categories=CATEGORIES, view="dashboard")
-
-# ─── Admin: Add Product ──────────────────────────────────────────────────────
-
-@app.route("/admin/product/new", methods=["GET", "POST"])
-@admin_required
-def admin_new_product():
-    if request.method == "POST":
-        # Handle image upload to B2
-        image_value = request.form.get("image", "")
-        file = request.files.get("image_file")
-        if file and file.filename:
-            import uuid
-            ext = file.filename.rsplit(".", 1)[-1].lower()
-            filename = f"{uuid.uuid4().hex}.{ext}"
-            image_value = upload_to_b2(file, filename)
-        data = {
-            "name":           request.form.get("name"),
-            "category":       request.form.get("category"),
-            "price": int(float(request.form.get("price", 0))),
-            "description":    request.form.get("description"),
-            "origin":         request.form.get("origin"),
-            "image":          image_value,
-            "dimensions":     request.form.get("dimensions"),
-            "indoor_outdoor": request.form.get("indoor_outdoor"),
-            "active":         request.form.get("active") == "on",
-        }
-        supabase.table("products").insert(data).execute()
-        return redirect(url_for("admin_dashboard"))
-    return render_template("admin.html", categories=CATEGORIES, view="new")
-
-# ─── Admin: Edit Product ─────────────────────────────────────────────────────
-
-@app.route("/admin/product/<int:product_id>/edit", methods=["GET", "POST"])
-@admin_required
-def admin_edit_product(product_id):
-    if request.method == "POST":
-        # Handle image upload to B2
-        image_value = request.form.get("image", "")
-        file = request.files.get("image_file")
-        if file and file.filename:
-            import uuid
-            ext = file.filename.rsplit(".", 1)[-1].lower()
-            filename = f"{uuid.uuid4().hex}.{ext}"
-            image_value = upload_to_b2(file, filename)
-        data = {
-            "name":           request.form.get("name"),
-            "category":       request.form.get("category"),
-            "price": int(float(request.form.get("price", 0))),
-            "description":    request.form.get("description"),
-            "origin":         request.form.get("origin"),
-            "image":          image_value,
-            "dimensions":     request.form.get("dimensions"),
-            "indoor_outdoor": request.form.get("indoor_outdoor"),
-            "active":         request.form.get("active") == "on",
-        }
-        supabase.table("products").update(data).eq("id", product_id).execute()
-        return redirect(url_for("admin_dashboard"))
-    result = supabase.table("products").select("*").eq("id", product_id).execute()
-    if not result.data:
-        return "Product not found", 404
-    return render_template("admin.html", product=result.data[0], categories=CATEGORIES, view="edit")
-
-# ─── Admin: Delete Product ───────────────────────────────────────────────────
-
-
-@app.route("/admin/product/<int:product_id>/delete", methods=["POST"])
-@admin_required
-def admin_delete_product(product_id):
-    result = supabase.table("products").select("image").eq("id", product_id).execute()
-    if result.data:
-        image = result.data[0].get("image", "")
-        if image and image.startswith("http"):
-            try:
-                filename = image.split("/")[-1]
-                client = get_b2_client()
-                client.delete_object(
-                    Bucket=os.getenv("B2_BUCKET_NAME", "clay-and-stone-images"),
-                    Key=filename
-                )
-            except Exception as e:
-                pass
-    supabase.table("products").delete().eq("id", product_id).execute()
-    return redirect(url_for("admin_dashboard"))
-
-# ─── Admin: Toggle Active ────────────────────────────────────────────────────
-
-@app.route("/admin/product/<int:product_id>/toggle", methods=["POST"])
-@admin_required
-def admin_toggle_product(product_id):
-    result = supabase.table("products").select("active").eq("id", product_id).execute()
-    if result.data:
-        current = result.data[0]["active"]
-        supabase.table("products").update({"active": not current}).eq("id", product_id).execute()
-    return redirect(url_for("admin_dashboard"))
-
-
-# ─── Cart ────────────────────────────────────────────────────────────────────
+# ─── Cart ─────────────────────────────────────────────────────────────────────
 
 @app.route("/cart/add", methods=["POST"])
 def cart_add():
-    data = request.json
-    cart = session.get("cart", [])
+    data       = request.json
+    cart       = session.get("cart", [])
     product_id = data.get("product_id")
-    # Check if already in cart
     for item in cart:
         if item["product_id"] == product_id:
             item["qty"] += 1
             session["cart"] = cart
-            return jsonify({"status": "ok", "cart": cart, "count": sum(i["qty"] for i in cart)})
+            return jsonify({"status": "ok", "count": sum(i["qty"] for i in cart)})
     cart.append({
         "product_id": product_id,
         "name":       data.get("name"),
         "price":      data.get("price"),
         "image":      data.get("image"),
-        "qty":        1
+        "qty":        1,
     })
     session["cart"] = cart
-    return jsonify({"status": "ok", "cart": cart, "count": sum(i["qty"] for i in cart)})
+    return jsonify({"status": "ok", "count": sum(i["qty"] for i in cart)})
 
 @app.route("/cart/remove", methods=["POST"])
 def cart_remove():
@@ -296,7 +284,7 @@ def cart_remove():
     cart = session.get("cart", [])
     cart = [i for i in cart if i["product_id"] != data.get("product_id")]
     session["cart"] = cart
-    return jsonify({"status": "ok", "cart": cart, "count": sum(i["qty"] for i in cart)})
+    return jsonify({"status": "ok", "count": sum(i["qty"] for i in cart)})
 
 @app.route("/cart/update", methods=["POST"])
 def cart_update():
@@ -306,11 +294,11 @@ def cart_update():
         if item["product_id"] == data.get("product_id"):
             item["qty"] = max(1, int(data.get("qty", 1)))
     session["cart"] = cart
-    return jsonify({"status": "ok", "cart": cart, "count": sum(i["qty"] for i in cart)})
+    return jsonify({"status": "ok", "count": sum(i["qty"] for i in cart)})
 
 @app.route("/cart")
 def cart():
-    cart = session.get("cart", [])
+    cart  = session.get("cart", [])
     total = sum(i["price"] * i["qty"] for i in cart)
     return render_template("cart.html", cart=cart, total=total)
 
@@ -324,7 +312,7 @@ def cart_data():
     cart = session.get("cart", [])
     return jsonify({"cart": cart})
 
-# ─── Checkout ────────────────────────────────────────────────────────────────
+# ─── Checkout ─────────────────────────────────────────────────────────────────
 
 @app.route("/checkout", methods=["GET", "POST"])
 def checkout():
@@ -332,46 +320,190 @@ def checkout():
     if not cart:
         return redirect(url_for("products"))
     total = sum(i["price"] * i["qty"] for i in cart)
+
     if request.method == "POST":
-        # Store order in Supabase
+        name    = request.form.get("name", "")
+        email   = request.form.get("email", "")
+        phone   = request.form.get("phone", "")
+        address = request.form.get("address", "")
+        city    = request.form.get("city", "")
+        state   = request.form.get("state", "")
+        zip_    = request.form.get("zip", "")
+
+        # Split name into first/last for WooCommerce
+        name_parts  = name.strip().split(" ", 1)
+        first_name  = name_parts[0]
+        last_name   = name_parts[1] if len(name_parts) > 1 else ""
+
+        # Build WooCommerce order payload
         order_data = {
-            "customer_name":  request.form.get("name"),
-            "customer_email": request.form.get("email"),
-            "customer_phone": request.form.get("phone"),
-            "address":        request.form.get("address"),
-            "city":           request.form.get("city"),
-            "state":          request.form.get("state"),
-            "zip":            request.form.get("zip"),
-            "items":          str(cart),
-            "total":          total,
-            "status":         "pending"
+            "payment_method":       "cod",
+            "payment_method_title": "Pay on Delivery",
+            "set_paid":             False,
+            "status":               "processing",
+            "billing": {
+                "first_name": first_name,
+                "last_name":  last_name,
+                "address_1":  address,
+                "city":       city,
+                "state":      state,
+                "postcode":   zip_,
+                "country":    "US",
+                "email":      email,
+                "phone":      phone,
+            },
+            "shipping": {
+                "first_name": first_name,
+                "last_name":  last_name,
+                "address_1":  address,
+                "city":       city,
+                "state":      state,
+                "postcode":   zip_,
+                "country":    "US",
+            },
+            "line_items": [
+                {
+                    "product_id": item["product_id"],
+                    "quantity":   item["qty"],
+                }
+                for item in cart
+            ],
+            "customer_note": "Order placed via Clay & Stone",
         }
-        supabase.table("orders").insert(order_data).execute()
-        # Send confirmation email
-        import resend
-        resend.api_key = os.getenv("RESEND_API_KEY")
-        items_html = "".join(f"<li>{i['name']} x{i['qty']} — ${i['price'] * i['qty']}</li>" for i in cart)
-        resend.Emails.send({
-            "from":    "onboarding@resend.dev",
-            "to":      request.form.get("email"),
-            "subject": "Your Clay & Stone Order",
-            "html":    f"""
-                <h2>Thank you for your order!</h2>
-                <p>We'll be in touch to confirm shipping details.</p>
-                <ul>{items_html}</ul>
-                <p><strong>Total: ${total}</strong></p>
-                <p>Clay & Stone — a collection of Villa & Mission Imports<br>
-                1815 Morena Blvd, San Diego CA 92110 · 858-375-4556</p>
-            """
-        })
+
+        order = wc_post("orders", order_data)
+
+        if not order:
+            return render_template("checkout.html", cart=cart, total=total,
+                                   error="There was a problem placing your order. Please call us at 858-375-4556.")
+
+        # Send confirmation email via Resend
+        try:
+            import resend
+            resend.api_key = os.getenv("RESEND_API_KEY")
+            items_html = "".join(
+                f"<li>{i['name']} &times;{i['qty']} — ${i['price'] * i['qty']}</li>"
+                for i in cart
+            )
+            resend.Emails.send({
+                "from":     "orders@claynstone.com",
+                "to":      email,
+                "subject": "Your Clay & Stone Order",
+                "html":    f"""
+                    <h2>Thank you for your order!</h2>
+                    <p>We'll be in touch to confirm delivery details.</p>
+                    <ul>{items_html}</ul>
+                    <p><strong>Total: ${total}</strong></p>
+                    <p><em>Payment is due on delivery.</em></p>
+                    <p>Clay & Stone — a collection of Villa &amp; Mission Imports<br>
+                    1815 Morena Blvd, San Diego CA 92110 · 858-375-4556</p>
+                """
+            })
+            # Notify Pierre
+            resend.Emails.send({
+                "from":      "orders@claynstone.com",
+                "to":      os.getenv("INQUIRY_EMAIL", "asif.shakeel@gmail.com"),
+                "subject": f"New Order — {name} (#{order.get('id', '')})",
+                "html":    f"""
+                    <h2>New Clay & Stone order</h2>
+                    <p><strong>Customer:</strong> {name}</p>
+                    <p><strong>Email:</strong> {email}</p>
+                    <p><strong>Phone:</strong> {phone}</p>
+                    <p><strong>Address:</strong> {address}, {city}, {state} {zip_}</p>
+                    <ul>{items_html}</ul>
+                    <p><strong>Total: ${total}</strong></p>
+                    <p><strong>WooCommerce order ID:</strong> #{order.get('id', '')}</p>
+                """
+            })
+        except Exception as e:
+            print(f"Email error: {e}")
+
         session["cart"] = []
+        session["last_order_id"] = order.get("id")
         return redirect(url_for("order_confirmation"))
+
     return render_template("checkout.html", cart=cart, total=total)
 
 @app.route("/order-confirmation")
 def order_confirmation():
-    return render_template("order_confirmation.html")
+    order_id = session.pop("last_order_id", None)
+    return render_template("order_confirmation.html", order_id=order_id)
 
-# ─── Run ─────────────────────────────────────────────────────────────────────
+# ─── Stock Check ──────────────────────────────────────────────────────────────
+
+@app.route("/check-stock", methods=["POST"])
+def check_stock():
+    data  = request.json
+    items = data.get("items", [])
+    for item in items:
+        name     = item.get("name")
+        qty      = item.get("quantity", 1)
+        products = wc_get("products", {"search": name, "per_page": 5})
+        if products and isinstance(products, list):
+            for p in products:
+                if p["name"] == name and p.get("manage_stock"):
+                    if (p["stock_quantity"] or 0) < qty:
+                        return jsonify({"ok": False, "item": name, "available": p["stock_quantity"]})
+    return jsonify({"ok": True})
+
+# ─── WooCommerce Webhooks ─────────────────────────────────────────────────────
+
+@app.route("/woo/webhook", methods=["POST"])
+def woo_webhook():
+    """Fires after a completed order — stock already decremented by WooCommerce."""
+    secret   = os.getenv("WOO_WEBHOOK_SECRET", "")
+    payload  = request.get_data()
+    sig      = request.headers.get("X-WC-Webhook-Signature", "")
+    expected = base64.b64encode(
+        hmac.new(secret.encode(), payload, hashlib.sha256).digest()
+    ).decode()
+    if secret and not hmac.compare_digest(sig, expected):
+        return jsonify({"status": "error", "message": "Invalid signature"}), 401
+    topic = request.headers.get("X-WC-Webhook-Topic", "")
+    print(f"WooCommerce webhook received: {topic}")
+    return jsonify({"status": "ok"})
+
+@app.route("/woo/product-updated", methods=["POST"])
+def woo_product_updated():
+    """Fires when a product is created or updated — re-embeds for RAG."""
+    secret   = os.getenv("WOO_WEBHOOK_SECRET", "")
+    payload  = request.get_data()
+    sig      = request.headers.get("X-WC-Webhook-Signature", "")
+    expected = base64.b64encode(
+        hmac.new(secret.encode(), payload, hashlib.sha256).digest()
+    ).decode()
+    if secret and not hmac.compare_digest(sig, expected):
+        return jsonify({"status": "error", "message": "Invalid signature"}), 401
+    p = json.loads(payload)
+    if p.get("status") == "publish":
+        embed_and_store(p)
+        print(f"Re-embedded: {p.get('name')}")
+    return jsonify({"status": "ok"})
+
+@app.route("/woo/product-deleted", methods=["POST"])
+def woo_product_deleted():
+    """Fires when a product is deleted — removes from RAG."""
+    secret   = os.getenv("WOO_WEBHOOK_SECRET", "")
+    payload  = request.get_data()
+    sig      = request.headers.get("X-WC-Webhook-Signature", "")
+    expected = base64.b64encode(
+        hmac.new(secret.encode(), payload, hashlib.sha256).digest()
+    ).decode()
+    if secret and not hmac.compare_digest(sig, expected):
+        return jsonify({"status": "error", "message": "Invalid signature"}), 401
+    p = json.loads(payload)
+    product_id = p.get("id")
+    if product_id:
+        supabase.table("product_embeddings_woo").delete().eq("product_id", product_id).execute()
+        print(f"Removed embedding for product id: {product_id}")
+    return jsonify({"status": "ok"})
+
+# DEV ONLY — remove before Kinsta deploy
+@app.route("/cart/clear")
+def cart_clear():
+    session["cart"] = []
+    return redirect(url_for("cart"))
+# ─── Run ──────────────────────────────────────────────────────────────────────
+
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5001, host='0.0.0.0')

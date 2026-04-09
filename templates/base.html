@@ -141,124 +141,9 @@
       width: 36px; border-radius: 6px; cursor: pointer; font-size: 16px;
     }
 
-    /* CART ICON */
-    .nav-cart {
-      position: relative; cursor: pointer;
-      color: var(--muted); text-decoration: none;
-      font-size: 12px; letter-spacing: 2px; text-transform: uppercase;
-      transition: color 0.2s;
-    }
-    .nav-cart:hover { color: var(--gold); }
-    .cart-badge {
-      position: absolute; top: -8px; right: -12px;
-      background: var(--gold); color: #fff;
-      font-size: 10px; width: 18px; height: 18px;
-      border-radius: 50%; display: flex;
-      align-items: center; justify-content: center;
-      font-weight: 500;
-    }
-    .cart-badge.hidden { display: none; }
-
-    /* CART DRAWER */
-    .cart-overlay {
-      display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,0.4); z-index: 300;
-    }
-    .cart-overlay.open { display: block; }
-    .cart-drawer {
-      position: fixed; top: 0; right: -420px;
-      width: 420px; height: 100vh;
-      background: #fff; z-index: 301;
-      display: flex; flex-direction: column;
-      transition: right 0.35s ease;
-      box-shadow: -4px 0 40px rgba(0,0,0,0.1);
-    }
-    .cart-drawer.open { right: 0; }
-    .cart-drawer-header {
-      padding: 24px 28px;
-      border-bottom: 1px solid var(--border);
-      display: flex; justify-content: space-between; align-items: center;
-    }
-    .cart-drawer-header h3 {
-      font-family: 'Cormorant Garamond', serif;
-      font-size: 22px; font-weight: 300; color: var(--black);
-      letter-spacing: 2px;
-    }
-    .cart-drawer-close {
-      background: none; border: none; cursor: pointer;
-      font-size: 20px; color: var(--muted);
-    }
-    .cart-drawer-close:hover { color: var(--black); }
-    .cart-drawer-items {
-      flex: 1; overflow-y: auto; padding: 20px 28px;
-    }
-    .cart-item {
-      display: flex; gap: 16px; padding: 16px 0;
-      border-bottom: 1px solid var(--border);
-    }
-    .cart-item-img {
-      width: 72px; height: 72px; object-fit: contain;
-      background: var(--offwhite);
-    }
-    .cart-item-info { flex: 1; }
-    .cart-item-name {
-      font-family: 'Cormorant Garamond', serif;
-      font-size: 16px; color: var(--black); margin-bottom: 4px;
-    }
-    .cart-item-price { font-size: 13px; color: var(--muted); }
-    .cart-item-actions {
-      display: flex; align-items: center; gap: 10px; margin-top: 8px;
-    }
-    .cart-qty-btn {
-      background: var(--offwhite); border: none; cursor: pointer;
-      width: 24px; height: 24px; font-size: 14px;
-      display: flex; align-items: center; justify-content: center;
-    }
-    .cart-qty { font-size: 13px; min-width: 20px; text-align: center; }
-    .cart-remove {
-      margin-left: auto; background: none; border: none;
-      color: var(--muted); cursor: pointer; font-size: 11px;
-      letter-spacing: 1px; text-transform: uppercase;
-    }
-    .cart-remove:hover { color: var(--black); }
-    .cart-drawer-footer {
-      padding: 24px 28px;
-      border-top: 1px solid var(--border);
-      background: var(--offwhite);
-    }
-    .cart-subtotal {
-      display: flex; justify-content: space-between;
-      font-size: 14px; color: var(--black); margin-bottom: 16px;
-    }
-    .cart-subtotal span:last-child {
-      font-family: 'Cormorant Garamond', serif; font-size: 18px;
-    }
-    .cart-empty {
-      text-align: center; padding: 60px 20px;
-      font-family: 'Cormorant Garamond', serif;
-      font-size: 20px; color: var(--muted);
-    }
-    .btn-checkout {
-      display: block; width: 100%; padding: 16px;
-      background: var(--black); color: #fff; border: none;
-      font-family: 'Jost', sans-serif; font-size: 11px;
-      letter-spacing: 3px; text-transform: uppercase;
-      cursor: pointer; text-decoration: none; text-align: center;
-      transition: background 0.2s; margin-bottom: 10px;
-    }
-    .btn-checkout:hover { background: var(--gold); }
-    .btn-continue {
-      display: block; width: 100%; padding: 12px;
-      background: none; border: 1px solid var(--border);
-      color: var(--muted); font-family: 'Jost', sans-serif;
-      font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
-      cursor: pointer; text-align: center; text-decoration: none;
-      transition: all 0.2s;
-    }
-    .btn-continue:hover { border-color: var(--black); color: var(--black); }
-
     {% block extra_styles %}{% endblock %}
   </style>
+
 </head>
 <body>
 
@@ -268,31 +153,18 @@
     <li><a href="/products">Collection</a></li>
     <li><a href="/about">Our Story</a></li>
     <li><a href="/about#visit">Visit</a></li>
-    {# Cart nav hidden until payment gateway is configured #}
+<li>
+  <a href="/cart" style="display:flex;align-items:center;gap:6px;line-height:1;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
+      <line x1="3" y1="6" x2="21" y2="6"/>
+      <path d="M16 10a4 4 0 01-8 0"/>
+    </svg>
+    <span id="nav-cart-count" style="background:var(--gold);color:#fff;border-radius:50%;width:18px;height:18px;font-size:10px;display:none;align-items:center;justify-content:center;">0</span>
+  </a>
+</li>
   </ul>
 </nav>
-
-<!-- Cart Overlay -->
-<div class="cart-overlay" id="cartOverlay"></div>
-
-<!-- Cart Drawer -->
-<div class="cart-drawer" id="cartDrawer">
-  <div class="cart-drawer-header">
-    <h3>Your Cart</h3>
-    <button class="cart-drawer-close" id="cartClose">✕</button>
-  </div>
-  <div class="cart-drawer-items" id="cartItems">
-    <div class="cart-empty">Your cart is empty</div>
-  </div>
-  <div class="cart-drawer-footer" id="cartFooter" style="display:none;">
-    <div class="cart-subtotal">
-      <span>Subtotal</span>
-      <span id="cartTotal">$0</span>
-    </div>
-    <a href="/checkout" class="btn-checkout">Proceed to Checkout</a>
-    <a href="/products" class="btn-continue">Continue Browsing</a>
-  </div>
-</div>
 
 {% block content %}{% endblock %}
 
@@ -375,103 +247,19 @@
   input.addEventListener('keydown', e => { if (e.key === 'Enter') sendMsg(); });
 </script>
 
-
 <script>
-// Cart drawer
-const cartToggle  = document.getElementById('cartToggle');
-const cartClose   = document.getElementById('cartClose');
-const cartOverlay = document.getElementById('cartOverlay');
-const cartDrawer  = document.getElementById('cartDrawer');
-const cartBadge   = document.getElementById('cartBadge');
-const cartItems   = document.getElementById('cartItems');
-const cartFooter  = document.getElementById('cartFooter');
-const cartTotal   = document.getElementById('cartTotal');
-
-async function openCart() {
-  cartDrawer.classList.add('open');
-  cartOverlay.classList.add('open');
-  // Always fetch fresh cart from server
-  const res  = await fetch('/cart/data');
+async function updateCartCount() {
+  const res = await fetch('/cart/count');
   const data = await res.json();
-  updateCartUI(data.cart);
-}
-function closeCart() {
-  cartDrawer.classList.remove('open');
-  cartOverlay.classList.remove('open');
-}
-
-cartToggle.onclick  = openCart;
-cartClose.onclick   = closeCart;
-cartOverlay.onclick = closeCart;
-
-function updateCartUI(cart) {
-  const count = cart.reduce((s, i) => s + i.qty, 0);
-  const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
-  cartBadge.textContent = count;
-  cartBadge.classList.toggle('hidden', count === 0);
-  cartTotal.textContent = '$' + total.toLocaleString();
-  cartFooter.style.display = cart.length ? 'block' : 'none';
-  if (!cart.length) {
-    cartItems.innerHTML = '<div class="cart-empty">Your cart is empty</div>';
-    return;
+  const badge = document.getElementById('nav-cart-count');
+  if (data.count > 0) {
+    badge.textContent = data.count;
+    badge.style.display = 'flex';
+  } else {
+    badge.style.display = 'none';
   }
-  cartItems.innerHTML = cart.map(item => `
-    <div class="cart-item">
-      <img class="cart-item-img"
-           src="/static/images/${item.image || ''}"
-           onerror="this.style.display='none'"
-           alt="${item.name}">
-      <div class="cart-item-info">
-        <div class="cart-item-name">${item.name}</div>
-        <div class="cart-item-price">$${(item.price * item.qty).toLocaleString()}</div>
-        <div class="cart-item-actions">
-          <button class="cart-qty-btn" onclick="updateQty(${item.product_id}, ${item.qty - 1})">−</button>
-          <span class="cart-qty">${item.qty}</span>
-          <button class="cart-qty-btn" onclick="updateQty(${item.product_id}, ${item.qty + 1})">+</button>
-          <button class="cart-remove" onclick="removeItem(${item.product_id})">Remove</button>
-        </div>
-      </div>
-    </div>
-  `).join('');
 }
-
-async function addToCart(productId, name, price, image) {
-  const res  = await fetch('/cart/add', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({product_id: productId, name, price, image})
-  });
-  const data = await res.json();
-  updateCartUI(data.cart);
-  openCart();
-}
-
-async function removeItem(productId) {
-  const res  = await fetch('/cart/remove', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({product_id: productId})
-  });
-  const data = await res.json();
-  updateCartUI(data.cart);
-}
-
-async function updateQty(productId, qty) {
-  if (qty < 1) { removeItem(productId); return; }
-  const res  = await fetch('/cart/update', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({product_id: productId, qty})
-  });
-  const data = await res.json();
-  updateCartUI(data.cart);
-}
-
-// Load cart count on page load
-fetch('/cart/count').then(r => r.json()).then(data => {
-  cartBadge.textContent = data.count;
-  cartBadge.classList.toggle('hidden', data.count === 0);
-});
+updateCartCount();
 </script>
 
 {% block extra_scripts %}{% endblock %}

@@ -43,15 +43,23 @@
       <tr>
         <td style="width:88px;">
           {% if item.image %}
-            <img src="/static/images/{{ item.image }}" class="cart-row-img" alt="{{ item.name }}">
+            <img src="{{ item.image | img_url }}" class="cart-row-img" alt="{{ item.name }}">
           {% endif %}
         </td>
         <td><div class="cart-row-name">{{ item.name }}</div></td>
         <td><div class="cart-row-price">${{ item.price }}</div></td>
-        <td><div class="cart-row-price">{{ item.qty }}</div></td>
+        <td>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <button onclick="updateQty({{ item.product_id }}, {{ item.qty - 1 }})"
+                    style="background:none;border:1px solid var(--border);width:28px;height:28px;cursor:pointer;font-size:16px;color:var(--muted);">−</button>
+            <span class="cart-row-price" id="qty-{{ item.product_id }}">{{ item.qty }}</span>
+            <button onclick="updateQty({{ item.product_id }}, {{ item.qty + 1 }})"
+                    style="background:none;border:1px solid var(--border);width:28px;height:28px;cursor:pointer;font-size:16px;color:var(--muted);">+</button>
+          </div>
+        </td>
         <td><div class="cart-row-price">${{ item.price * item.qty }}</div></td>
         <td>
-          <button onclick="removeItem({{ item.product_id }}); location.reload();"
+          <button onclick="removeItem({{ item.product_id }})"
                   style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:11px;letter-spacing:1px;text-transform:uppercase;">
             Remove
           </button>
@@ -62,6 +70,9 @@
   </table>
   <div class="cart-summary">
     <div class="cart-summary-total">Total: <span>${{ total }}</span></div>
+      <a href="/products" style="display:block;text-align:right;margin-bottom:16px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);text-decoration:none;">
+    ← Continue Shopping
+  </a>
     <a href="/checkout" class="btn-checkout" style="display:inline-block;padding:14px 48px;background:var(--black);color:#fff;text-decoration:none;font-size:11px;letter-spacing:3px;text-transform:uppercase;">
       Proceed to Checkout
     </a>
@@ -75,4 +86,33 @@
   </div>
   {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+async function removeItem(productId) {
+  await fetch('/cart/remove', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ product_id: productId })
+  });
+  location.reload();
+}
+async function updateQty(productId, newQty) {
+  if (newQty < 1) {
+    await fetch('/cart/remove', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ product_id: productId })
+    });
+  } else {
+    await fetch('/cart/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ product_id: productId, qty: newQty })
+    });
+  }
+  location.reload();
+}
+</script>
 {% endblock %}

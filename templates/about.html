@@ -1,5 +1,5 @@
 # ── about.html ─────────────────────────────────────────────────────────────
-cat > "$TEMPLATES/about.html" << 'EOF'
+
 {% extends "base.html" %}
 
 {% block title %}Our Story — Clay & Stone{% endblock %}
@@ -100,7 +100,4 @@ cat > "$TEMPLATES/about.html" << 'EOF'
   </div>
 </div>
 {% endblock %}
-EOF
 
-echo "✅ Both templates created successfully"
-ls -la "$TEMPLATES"

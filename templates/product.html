@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ product.name }} — Souk & Stone{% endblock %}
+{% block title %}{{ product.name }} — Clay & Stone{% endblock %}
 
 {% block extra_styles %}
 .product-page {
@@ -184,7 +184,7 @@
 
       <hr class="divider">
 
-      <p class="product-description">{{ product.description }}</p>
+      <p class="product-description">{{ product.description | safe }}</p>
 
       <div class="specs">
         <div class="spec">
@@ -207,12 +207,12 @@
 
       <hr class="divider">
 
-      <div class="cta-section">
-        {# Cart and inquiry buttons hidden until payment gateway is configured #}
-        <a href="tel:8583754556" class="btn-secondary">
-          Call Us — 858-375-4556
-        </a>
-      </div>
+<div class="cta-section">
+  <button class="btn-primary" onclick="addToCart()">Add to Cart</button>
+  <a href="tel:8583754556" class="btn-secondary" style="margin-top:12px;">
+    Call Us — 858-375-4556
+  </a>
+</div>
 
       <hr class="divider">
 
@@ -243,7 +243,29 @@
 {% endblock %}
 
 {% block extra_scripts %}
+
 <script>
+
+  async function addToCart() {
+  const res = await fetch('/cart/add', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      product_id: {{ product.id }},
+      name:       "{{ product.name }}",
+      price:      {{ product.price }},
+      image:      "{{ product.image }}",
+    })
+  });
+  const data = await res.json();
+  if (data.status === 'ok') {
+    // Update cart count in nav if present
+    const badge = document.getElementById('cart-count');
+    if (badge) badge.textContent = data.count;
+    window.location.href = '/cart';
+  }
+}
+
 async function submitInquiry() {
   const name  = document.getElementById('inq-name').value;
   const email = document.getElementById('inq-email').value;
