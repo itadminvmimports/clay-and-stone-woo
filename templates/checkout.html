@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Checkout — Clay & Stone{% endblock %}
+
 {% block extra_styles %}
 .checkout-page { padding: 140px 48px 80px; max-width: 1000px; margin: 0 auto; }
 .checkout-page h1 {
@@ -22,16 +23,22 @@
   font-size: 14px; color: var(--black); width: 100%;
 }
 .form-group input:focus { outline: none; border-color: var(--gold); }
-.payment-placeholder {
-  background: var(--offwhite);
-  border: 1px dashed rgba(181,105,58,0.4);
-  padding: 32px; text-align: center; margin: 24px 0;
-  border-radius: 2px;
+
+/* Stripe card element */
+#card-element {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  background: #fff;
+  transition: border-color 0.2s;
 }
-.payment-placeholder p {
-  color: var(--muted); font-size: 13px; line-height: 1.8;
+#card-element.focused { border-color: var(--gold); }
+#card-errors {
+  color: #c0392b;
+  font-size: 12px;
+  margin-top: 6px;
+  min-height: 18px;
 }
-.payment-placeholder strong { color: var(--gold); }
+
 .order-summary { background: var(--offwhite); padding: 32px; }
 .order-summary h2 {
   font-family: 'Cormorant Garamond', serif;
@@ -57,22 +64,39 @@
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 .btn-checkout:hover { background: var(--gold); }
+.btn-checkout:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.error-msg {
+  background: #fdf0f0;
+  border: 1px solid #e8b4b4;
+  color: #c0392b;
+  padding: 12px 16px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
 {% endblock %}
+
 {% block content %}
 <div class="checkout-page">
   <h1>Checkout</h1>
+
+  {% if error %}
+  <div class="error-msg">{{ error }}</div>
+  {% endif %}
+
   <div class="checkout-grid">
     <div class="form-section">
-      <form method="POST">
+      <form id="checkout-form" method="POST">
+
         <h2>Contact Information</h2>
         <div class="form-row">
           <div class="form-group">
             <label>Full Name</label>
-            <input type="text" name="name" required>
+            <input type="text" name="name" id="name" required>
           </div>
           <div class="form-group">
             <label>Email</label>
-            <input type="email" name="email" required>
+            <input type="email" name="email" id="email" required>
           </div>
         </div>
         <div class="form-row full">
@@ -107,16 +131,19 @@
         </div>
 
         <h2 style="margin-top:32px;">Payment</h2>
-        <div class="payment-placeholder">
-          <p><strong>Secure Payment Coming Soon</strong></p>
-          <p>We are finalizing our payment integration.<br>
-          Submit your order and we will contact you<br>
-          to complete payment securely.</p>
+        <div class="form-group" style="margin-bottom:8px;">
+          <label>Card Details</label>
+          <div id="card-element"></div>
+          <div id="card-errors"></div>
         </div>
 
-        <button type="submit" class="btn-checkout" style="border:none;cursor:pointer;">
+        <!-- Hidden field populated by JS before submit -->
+        <input type="hidden" name="payment_method_id" id="payment_method_id">
+
+        <button type="button" id="submit-btn" class="btn-checkout">
           Place Order
         </button>
+
       </form>
     </div>
 
@@ -140,4 +167,65 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://js.stripe.com/v3/"></script>
+<script>
+  const stripe = Stripe('{{ stripe_pub_key }}');
+  const elements = stripe.elements();
+
+  const card = elements.create('card', {
+    style: {
+      base: {
+        fontFamily: "'Jost', sans-serif",
+        fontSize: '14px',
+        color: '#1a1a1a',
+        '::placeholder': { color: '#8a7d6e' }
+      },
+      invalid: { color: '#c0392b' }
+    }
+  });
+
+  card.mount('#card-element');
+
+  card.on('focus', () => document.getElementById('card-element').classList.add('focused'));
+  card.on('blur',  () => document.getElementById('card-element').classList.remove('focused'));
+  card.on('change', e => {
+    document.getElementById('card-errors').textContent = e.error ? e.error.message : '';
+  });
+
+  document.getElementById('submit-btn').addEventListener('click', async function() {
+    const btn = this;
+    btn.disabled = true;
+    btn.textContent = 'Processing...';
+
+    const name  = document.getElementById('name').value;
+    const email = document.getElementById('email').value;
+
+    if (!name || !email) {
+      btn.disabled = false;
+      btn.textContent = 'Place Order';
+      document.getElementById('card-errors').textContent = 'Please fill in your name and email.';
+      return;
+    }
+
+    const { paymentMethod, error } = await stripe.createPaymentMethod({
+      type: 'card',
+      card: card,
+      billing_details: { name, email }
+    });
+
+    if (error) {
+      document.getElementById('card-errors').textContent = error.message;
+      btn.disabled = false;
+      btn.textContent = 'Place Order';
+      return;
+    }
+
+    // Attach payment method ID and submit form
+    document.getElementById('payment_method_id').value = paymentMethod.id;
+    document.getElementById('checkout-form').submit();
+  });
+</script>
 {% endblock %}

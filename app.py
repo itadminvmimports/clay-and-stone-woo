@@ -9,9 +9,9 @@ import hashlib
 import logging
 import requests
 import urllib3
+import stripe
 
 urllib3.disable_warnings()
-
 load_dotenv()
 
 import voyageai
@@ -23,8 +23,9 @@ supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 WC_URL    = os.getenv("WC_URL")
 WC_KEY    = os.getenv("WC_KEY")
 WC_SECRET = os.getenv("WC_SECRET")
-WP_USER   = os.getenv("WP_USER")
-WP_PASS   = os.getenv("WP_APP_PASSWORD")
+
+STRIPE_PUB_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY")
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
 # ─── WooCommerce Helpers ──────────────────────────────────────────────────────
 
@@ -34,7 +35,6 @@ def wc_get(endpoint, params={}):
     r = requests.get(
         f"{WC_URL}/wp-json/wc/v3/{endpoint}",
         params=p,
-        
     )
     result = r.json()
     if isinstance(result, dict) and result.get("code"):
@@ -47,7 +47,6 @@ def wc_post(endpoint, data):
         f"{WC_URL}/wp-json/wc/v3/{endpoint}",
         params={"consumer_key": WC_KEY, "consumer_secret": WC_SECRET},
         json=data,
-        
     )
     result = r.json()
     if isinstance(result, dict) and result.get("code"):
@@ -60,8 +59,6 @@ def get_meta(meta_data, key):
 
 def normalize_product(p):
     description = re.sub(r"<[^>]+>", "", p.get("description") or p.get("short_description", "")).strip()
-    # LOCAL DEV ONLY — remove image proxy line before Kinsta deploy,
-    # replace with: image = p["images"][0]["src"] if p.get("images") else ""
     image = p["images"][0]["src"] if p.get("images") else ""
     return {
         "id":             p["id"],
@@ -79,18 +76,13 @@ def normalize_product(p):
 
 def get_products(category=None):
     params = {"per_page": 100, "status": "publish"}
-
-    # Always scope to Clay & Stone category on VM WooCommerce
     cs_cats = wc_get("products/categories", {"slug": "clay-and-stone"})
     if cs_cats and isinstance(cs_cats, list):
         params["category"] = cs_cats[0]["id"]
-
-    # Sub-category filter on top
     if category and category != "all":
         sub_cats = wc_get("products/categories", {"slug": category})
         if sub_cats and isinstance(sub_cats, list):
             params["category"] = sub_cats[0]["id"]
-
     return [normalize_product(p) for p in wc_get("products", params)]
 
 # ─── Embedding Helper ─────────────────────────────────────────────────────────
@@ -131,16 +123,6 @@ def img_url_filter(image):
         return image
     return f'/static/images/{image}'
 
-# CATEGORIES = {
-#     "all":        "All Pieces",
-#     "statement":  "Statement Vases",
-#     "glazed":     "Glazed Ceramic",
-#     "white":      "White Urns",
-#     "terracotta": "Terracotta & Garden",
-#     "berber":     "Berber Collection",
-#     "fountain":   "Fountains",
-# }
-
 import html
 
 def get_categories():
@@ -156,20 +138,12 @@ def get_categories():
             result[c["slug"]] = html.unescape(c["name"])
     return result
 
-
 # ─── Public Routes ────────────────────────────────────────────────────────────
 
 @app.route("/")
 def index():
     return render_template("index.html", featured=get_products()[:3])
 
-# @app.route("/products")
-# def products():
-#     category = request.args.get("category", "all")
-#     return render_template("products.html",
-#                            products=get_products(category),
-#                            categories=CATEGORIES,
-#                            active=category)
 @app.route("/products")
 def products():
     category = request.args.get("category", "all")
@@ -178,7 +152,6 @@ def products():
                            products=get_products(category),
                            categories=categories,
                            active=category)
-
 
 @app.route("/product/<int:product_id>")
 def product(product_id):
@@ -322,24 +295,51 @@ def checkout():
     total = sum(i["price"] * i["qty"] for i in cart)
 
     if request.method == "POST":
-        name    = request.form.get("name", "")
-        email   = request.form.get("email", "")
-        phone   = request.form.get("phone", "")
-        address = request.form.get("address", "")
-        city    = request.form.get("city", "")
-        state   = request.form.get("state", "")
-        zip_    = request.form.get("zip", "")
+        name              = request.form.get("name", "")
+        email             = request.form.get("email", "")
+        phone             = request.form.get("phone", "")
+        address           = request.form.get("address", "")
+        city              = request.form.get("city", "")
+        state             = request.form.get("state", "")
+        zip_              = request.form.get("zip", "")
+        payment_method_id = request.form.get("payment_method_id", "")
 
-        # Split name into first/last for WooCommerce
-        name_parts  = name.strip().split(" ", 1)
-        first_name  = name_parts[0]
-        last_name   = name_parts[1] if len(name_parts) > 1 else ""
+        if not payment_method_id:
+            return render_template("checkout.html", cart=cart, total=total,
+                                   stripe_pub_key=STRIPE_PUB_KEY,
+                                   error="Payment information is required.")
 
-        # Build WooCommerce order payload
+        # ── Charge via Stripe ──────────────────────────────────────────────
+        try:
+            intent = stripe.PaymentIntent.create(
+                amount=total * 100,
+                currency="usd",
+                payment_method=payment_method_id,
+                confirm=True,
+                automatic_payment_methods={"enabled": True, "allow_redirects": "never"},
+                description=f"Clay & Stone order — {name}",
+                receipt_email=email,
+                metadata={"customer_name": name, "customer_phone": phone},
+            )
+        except stripe.error.CardError as e:
+            return render_template("checkout.html", cart=cart, total=total,
+                                   stripe_pub_key=STRIPE_PUB_KEY,
+                                   error=e.user_message)
+        except Exception as e:
+            print(f"Stripe error: {e}")
+            return render_template("checkout.html", cart=cart, total=total,
+                                   stripe_pub_key=STRIPE_PUB_KEY,
+                                   error="Payment failed. Please try again or call us at 858-375-4556.")
+
+        # ── Create WooCommerce order ───────────────────────────────────────
+        name_parts = name.strip().split(" ", 1)
+        first_name = name_parts[0]
+        last_name  = name_parts[1] if len(name_parts) > 1 else ""
+
         order_data = {
-            "payment_method":       "cod",
-            "payment_method_title": "Pay on Delivery",
-            "set_paid":             False,
+            "payment_method":       "stripe",
+            "payment_method_title": "Credit Card (Stripe)",
+            "set_paid":             True,
             "status":               "processing",
             "billing": {
                 "first_name": first_name,
@@ -362,22 +362,21 @@ def checkout():
                 "country":    "US",
             },
             "line_items": [
-                {
-                    "product_id": item["product_id"],
-                    "quantity":   item["qty"],
-                }
+                {"product_id": item["product_id"], "quantity": item["qty"]}
                 for item in cart
             ],
-            "customer_note": "Order placed via Clay & Stone",
+            "customer_note": f"Stripe PaymentIntent: {intent.id}",
         }
 
         order = wc_post("orders", order_data)
 
         if not order:
+            print(f"WooCommerce order failed — Stripe charged: {intent.id}")
             return render_template("checkout.html", cart=cart, total=total,
-                                   error="There was a problem placing your order. Please call us at 858-375-4556.")
+                                   stripe_pub_key=STRIPE_PUB_KEY,
+                                   error=f"Payment succeeded but order creation failed. Please call us at 858-375-4556 with reference: {intent.id}")
 
-        # Send confirmation email via Resend
+        # ── Send confirmation emails ───────────────────────────────────────
         try:
             import resend
             resend.api_key = os.getenv("RESEND_API_KEY")
@@ -386,32 +385,31 @@ def checkout():
                 for i in cart
             )
             resend.Emails.send({
-                "from":     "orders@claynstone.com",
+                "from":    "orders@claynstone.com",
                 "to":      email,
                 "subject": "Your Clay & Stone Order",
                 "html":    f"""
                     <h2>Thank you for your order!</h2>
-                    <p>We'll be in touch to confirm delivery details.</p>
+                    <p>Your payment has been processed successfully.</p>
                     <ul>{items_html}</ul>
                     <p><strong>Total: ${total}</strong></p>
-                    <p><em>Payment is due on delivery.</em></p>
                     <p>Clay & Stone — a collection of Villa &amp; Mission Imports<br>
                     1815 Morena Blvd, San Diego CA 92110 · 858-375-4556</p>
                 """
             })
-            # Notify Pierre
             resend.Emails.send({
-                "from":      "orders@claynstone.com",
+                "from":    "orders@claynstone.com",
                 "to":      os.getenv("INQUIRY_EMAIL", "asif.shakeel@gmail.com"),
                 "subject": f"New Order — {name} (#{order.get('id', '')})",
                 "html":    f"""
-                    <h2>New Clay & Stone order</h2>
+                    <h2>New Clay & Stone order — PAID</h2>
                     <p><strong>Customer:</strong> {name}</p>
                     <p><strong>Email:</strong> {email}</p>
                     <p><strong>Phone:</strong> {phone}</p>
                     <p><strong>Address:</strong> {address}, {city}, {state} {zip_}</p>
                     <ul>{items_html}</ul>
                     <p><strong>Total: ${total}</strong></p>
+                    <p><strong>Stripe PaymentIntent:</strong> {intent.id}</p>
                     <p><strong>WooCommerce order ID:</strong> #{order.get('id', '')}</p>
                 """
             })
@@ -422,7 +420,8 @@ def checkout():
         session["last_order_id"] = order.get("id")
         return redirect(url_for("order_confirmation"))
 
-    return render_template("checkout.html", cart=cart, total=total)
+    return render_template("checkout.html", cart=cart, total=total,
+                           stripe_pub_key=STRIPE_PUB_KEY)
 
 @app.route("/order-confirmation")
 def order_confirmation():
@@ -450,7 +449,6 @@ def check_stock():
 
 @app.route("/woo/webhook", methods=["POST"])
 def woo_webhook():
-    """Fires after a completed order — stock already decremented by WooCommerce."""
     secret   = os.getenv("WOO_WEBHOOK_SECRET", "")
     payload  = request.get_data()
     sig      = request.headers.get("X-WC-Webhook-Signature", "")
@@ -465,7 +463,6 @@ def woo_webhook():
 
 @app.route("/woo/product-updated", methods=["POST"])
 def woo_product_updated():
-    """Fires when a product is created or updated — re-embeds for RAG."""
     secret   = os.getenv("WOO_WEBHOOK_SECRET", "")
     payload  = request.get_data()
     sig      = request.headers.get("X-WC-Webhook-Signature", "")
@@ -482,7 +479,6 @@ def woo_product_updated():
 
 @app.route("/woo/product-deleted", methods=["POST"])
 def woo_product_deleted():
-    """Fires when a product is deleted — removes from RAG."""
     secret   = os.getenv("WOO_WEBHOOK_SECRET", "")
     payload  = request.get_data()
     sig      = request.headers.get("X-WC-Webhook-Signature", "")
@@ -498,11 +494,12 @@ def woo_product_deleted():
         print(f"Removed embedding for product id: {product_id}")
     return jsonify({"status": "ok"})
 
-# DEV ONLY — remove before Kinsta deploy
+# DEV ONLY — remove before production
 @app.route("/cart/clear")
 def cart_clear():
     session["cart"] = []
     return redirect(url_for("cart"))
+
 # ─── Run ──────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
