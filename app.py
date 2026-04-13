@@ -693,7 +693,10 @@ def test_ipos_charge():
             "Zip": "92110",
         },
     }
-    r = requests.post(IPOS_TRANSACT_URL, json=payload, headers=headers, timeout=30)
+    r = requests.post(
+    "https://payment.ipospays.com/api/v3/iposTransact", 
+    json=payload, headers=headers, timeout=30
+)
     return jsonify({
     "status": r.status_code, 
     "response": r.json(),
