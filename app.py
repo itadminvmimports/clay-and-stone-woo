@@ -46,6 +46,12 @@ else:
     IPOS_TRANSACT_URL = "https://payment.ipospays.tech/api/v2/iposTransact"
     FTD_URL           = "https://payment.ipospays.tech/ftd/v1/freedomtodesign.js"
 
+
+_categories_cache = None
+_categories_time  = 0
+CATEGORIES_TTL    = 3600  # 1 hour
+
+
 # ─── WooCommerce Helpers ──────────────────────────────────────────────────────
 
 def wc_get(endpoint, params={}):
@@ -87,22 +93,45 @@ def normalize_product(p):
         "image":          image,
         "stock":          p.get("stock_quantity"),
         "active":         p.get("status") == "publish",
-        "category":       p["categories"][0]["slug"] if p.get("categories") else "all",
+        "category": get_subcategory(p.get("categories", [])),
         "origin":         get_meta(p.get("meta_data", []), "origin"),
         "dimensions":     get_meta(p.get("meta_data", []), "dimensions"),
         "indoor_outdoor": get_meta(p.get("meta_data", []), "indoor_outdoor"),
     }
 
 def get_products(category=None):
-    params = {"per_page": 100, "status": "publish"}
-    cs_cats = wc_get("products/categories", {"slug": "clay-and-stone"})
-    if cs_cats and isinstance(cs_cats, list):
-        params["category"] = cs_cats[0]["id"]
+    query = supabase.table("products").select("*").eq("active", True)
     if category and category != "all":
-        sub_cats = wc_get("products/categories", {"slug": category})
-        if sub_cats and isinstance(sub_cats, list):
-            params["category"] = sub_cats[0]["id"]
-    return [normalize_product(p) for p in wc_get("products", params)]
+        query = query.eq("category", category)
+    result = query.execute()
+    return result.data if result.data else []
+
+def get_categories():
+    global _categories_cache, _categories_time
+    now = time.time()
+    if _categories_cache and now - _categories_time < CATEGORIES_TTL:
+        return _categories_cache
+    
+    cats = wc_get("products/categories", {
+        "parent": 250,
+        "per_page": 100,
+        "orderby": "name",
+        "order": "asc"
+    })
+    result = {"all": "All Pieces"}
+    if isinstance(cats, list):
+        for c in cats:
+            result[c["slug"]] = html.unescape(c["name"])
+    
+    _categories_cache = result
+    _categories_time  = now
+    return result
+
+def get_subcategory(categories):
+    for c in categories:
+        if c["slug"] != "clay-and-stone":
+            return c["slug"]
+    return "all"
 
 # ─── Embedding Helper ─────────────────────────────────────────────────────────
 
@@ -142,18 +171,7 @@ def img_url_filter(image):
         return image
     return f'/static/images/{image}'
 
-def get_categories():
-    cats = wc_get("products/categories", {
-        "parent": 250,
-        "per_page": 100,
-        "orderby": "name",
-        "order": "asc"
-    })
-    result = {"all": "All Pieces"}
-    if isinstance(cats, list):
-        for c in cats:
-            result[c["slug"]] = html.unescape(c["name"])
-    return result
+
 
 # ─── Public Routes ────────────────────────────────────────────────────────────
 
