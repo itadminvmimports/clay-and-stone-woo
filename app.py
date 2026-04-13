@@ -504,7 +504,7 @@ def checkout():
                 {"product_id": item["product_id"], "quantity": item["qty"]}
                 for item in cart
             ],
-            "customer_note": f"iPosPays Transaction ID: {transaction_id}",
+            "customer_note": "Order placed via Clay & Stone",
         }
 
         order = wc_post("orders", order_data)
@@ -549,7 +549,7 @@ def checkout():
                     <p><strong>Address:</strong> {address}, {city}, {state} {zip_}</p>
                     <ul>{items_html}</ul>
                     <p><strong>Total: ${total}</strong></p>
-                    <p><strong>iPosPays Transaction ID:</strong> {transaction_id}</p>
+                    # <p><strong>iPosPays Transaction ID:</strong> {transaction_id}</p>
                     <p><strong>WooCommerce order ID:</strong> #{order.get('id', '')}</p>
                 """
             })
@@ -687,7 +687,7 @@ def test_ipos_charge():
             "applySteamSettingTipFeeTax": False,
         },
         "preferences": {
-            "eReceipt": True,
+            "eReceipt": False,
             "customerName": "Test User",
             "customerEmail": "test@test.com",
             "requestCardToken": False,
