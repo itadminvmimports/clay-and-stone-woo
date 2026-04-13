@@ -423,7 +423,7 @@ def ipospays_charge(payment_token_id, amount_dollars, customer_name, customer_em
         if r.headers.get("AuthenticationRefreshRequired") == "true":
             _ipos_token_expiry = 0
 
-        resp    = result.get("iposTransactResponse", {})
+        resp = result.get("iposTransactResponse") or result.get("iposhpresponse") or {}
         success = resp.get("responseCode") == "200"
         return success, result
 
@@ -474,7 +474,8 @@ def checkout():
                                    ftd_url=FTD_URL, ftd_security_key=ftd_security_key,
                                    error=error_msg)
 
-        transaction_id = response.get("iposTransactResponse", {}).get("transactionId", "")
+        resp_data = response.get("iposTransactResponse") or response.get("iposhpresponse") or {}
+        transaction_id = resp_data.get("transactionId", "")
 
         # Create WooCommerce order
         name_parts = name.strip().split(" ", 1)
