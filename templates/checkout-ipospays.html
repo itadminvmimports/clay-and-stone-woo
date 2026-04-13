@@ -215,7 +215,7 @@
       const token = data_response.payment_token_id;
 
       if (!token) {
-        throw new Error('Card tokenization failed. Please check your card details.');
+        throw new Error('We were unable to process your card. Please check your card details and try again, or call us at 858-375-4556.');
       }
 
       document.getElementById('payment_token').value = token;

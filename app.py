@@ -473,7 +473,7 @@ def checkout():
         if not payment_token:
             return render_template("checkout-ipospays.html", cart=cart, total=total,
                                    ftd_url=FTD_URL, ftd_security_key=ftd_security_key,
-                                   error="Payment tokenization failed. Please try again.")
+                                   error="We were unable to process your card. Please check your details and try again, or call us at 858-375-4556.")
 
         # Charge via iPosPays
         success, response = ipospays_charge(
