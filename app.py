@@ -371,7 +371,7 @@ def get_ipos_token():
 
 # ─── iPosPays Charge ──────────────────────────────────────────────────────────
 
-def ipospays_charge(payment_token_id, amount_dollars, customer_name, customer_email):
+def ipospays_charge(payment_token_id, amount_dollars, customer_name, customer_email, zip_code="", street=""):
     """
     Charge via iPosPays Transact API using a paymentTokenId from FTD.
     amount_dollars: int or float e.g. 380
@@ -409,6 +409,10 @@ def ipospays_charge(payment_token_id, amount_dollars, customer_name, customer_em
             "customerName":  customer_name,
             "customerEmail": customer_email,
         },
+        "Avs": {
+    "StreetNo": street,
+    "Zip":      zip_code,
+},
     }
 
     try:
@@ -459,6 +463,8 @@ def checkout():
             amount_dollars=total,
             customer_name=name,
             customer_email=email,
+            zip_code=zip_,
+            street=address,
         )
 
         if not success:
