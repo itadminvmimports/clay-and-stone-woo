@@ -694,7 +694,13 @@ def test_ipos_charge():
         },
     }
     r = requests.post(IPOS_TRANSACT_URL, json=payload, headers=headers, timeout=30)
-    return jsonify({"status": r.status_code, "response": r.json()})
+    return jsonify({
+    "status": r.status_code, 
+    "response": r.json(),
+    "url_used": IPOS_TRANSACT_URL,
+    "tpn": IPOSPAYS_TPN,
+    "token_prefix": auth_token[:20] if auth_token else None,
+})
 
 # ─── Run ──────────────────────────────────────────────────────────────────────
 
