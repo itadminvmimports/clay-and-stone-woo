@@ -643,6 +643,7 @@ def cart_clear():
     session["cart"] = []
     return redirect(url_for("cart"))
 
+# TODO: Remove before final production hardening
 @app.route("/test-ipos-token")
 def test_ipos_token():
     token = get_ipos_token()
@@ -656,6 +657,7 @@ def test_ipos_token():
         "env":            IPOSPAYS_ENV,
     })
 
+# TODO: Remove before final production hardening
 @app.route("/test-ipos-auth")
 def test_ipos_auth():
     return jsonify({
@@ -664,6 +666,7 @@ def test_ipos_auth():
         "tpn_raw":        repr(IPOSPAYS_TPN),
     })
 
+# TODO: Remove before final production hardening
 @app.route("/test-ipos-charge")
 def test_ipos_charge():
     auth_token = get_ipos_token()
