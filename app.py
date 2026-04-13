@@ -665,13 +665,36 @@ def test_ipos_auth():
 
 @app.route("/test-ipos-charge")
 def test_ipos_charge():
-    success, response = ipospays_charge(
-        payment_token_id="test_fake_token",
-        amount_dollars=1,
-        customer_name="Test User",
-        customer_email="test@test.com"
-    )
-    return jsonify({"success": success, "response": response})
+    auth_token = get_ipos_token()
+    ref_id = uuid.uuid4().hex[:20]
+    headers = {
+        "token": auth_token,
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "merchantAuthentication": {
+            "merchantId": IPOSPAYS_TPN,
+            "transactionReferenceId": ref_id,
+        },
+        "transactionRequest": {
+            "transactionType": 1,
+            "amount": "100",
+            "paymentTokenId": "test_fake_token",
+            "applySteamSettingTipFeeTax": False,
+        },
+        "preferences": {
+            "eReceipt": True,
+            "customerName": "Test User",
+            "customerEmail": "test@test.com",
+            "requestCardToken": False,
+        },
+        "Avs": {
+            "StreetNo": "1815",
+            "Zip": "92110",
+        },
+    }
+    r = requests.post(IPOS_TRANSACT_URL, json=payload, headers=headers, timeout=30)
+    return jsonify({"status": r.status_code, "response": r.json()})
 
 # ─── Run ──────────────────────────────────────────────────────────────────────
 
