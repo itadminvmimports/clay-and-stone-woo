@@ -405,7 +405,7 @@ def ipospays_charge(payment_token_id, amount_dollars, customer_name, customer_em
             "applySteamSettingTipFeeTax": False,
         },
         "preferences": {
-            "eReceipt":      True,
+            "eReceipt":      False,
             "customerName":  customer_name,
             "customerEmail": customer_email,
         },
