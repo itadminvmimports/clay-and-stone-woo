@@ -474,8 +474,9 @@ def checkout():
                                    ftd_url=FTD_URL, ftd_security_key=ftd_security_key,
                                    error=error_msg)
 
-        resp_data = response.get("iposTransactResponse") or response.get("iposhpresponse") or {}
+        resp_data      = response.get("iposTransactResponse") or response.get("iposhpresponse") or {}
         transaction_id = resp_data.get("transactionId", "")
+        rrn            = resp_data.get("RRN") or resp_data.get("rrn", "")
 
         # Create WooCommerce order
         name_parts = name.strip().split(" ", 1)
@@ -504,7 +505,7 @@ def checkout():
                 {"product_id": item["product_id"], "quantity": item["qty"]}
                 for item in cart
             ],
-            "customer_note": "Order placed via Clay & Stone",
+            "customer_note": f"iPosPays Transaction ID: {transaction_id} | RRN: {rrn}",
         }
 
         order = wc_post("orders", order_data)
