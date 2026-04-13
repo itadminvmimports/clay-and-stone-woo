@@ -12,6 +12,7 @@ import time
 import logging
 import requests
 import urllib3
+import threading
 
 urllib3.disable_warnings()
 
@@ -132,6 +133,50 @@ def get_subcategory(categories):
         if c["slug"] != "clay-and-stone":
             return c["slug"]
     return "all"
+
+
+
+def refresh_categories_cache():
+    # Warm cache immediately on startup
+    global _categories_cache, _categories_time
+    try:
+        cats = wc_get("products/categories", {
+            "parent": 250,
+            "per_page": 100,
+            "orderby": "name",
+            "order": "asc"
+        })
+        result = {"all": "All Pieces"}
+        if isinstance(cats, list):
+            for c in cats:
+                result[c["slug"]] = html.unescape(c["name"])
+        _categories_cache = result
+        _categories_time  = time.time()
+        print("Categories cache warmed on startup")
+    except Exception as e:
+        print(f"Category cache warmup error: {e}")
+
+    # Then refresh hourly
+    while True:
+        time.sleep(CATEGORIES_TTL)
+        try:
+            cats = wc_get("products/categories", {
+                "parent": 250,
+                "per_page": 100,
+                "orderby": "name",
+                "order": "asc"
+            })
+            result = {"all": "All Pieces"}
+            if isinstance(cats, list):
+                for c in cats:
+                    result[c["slug"]] = html.unescape(c["name"])
+            _categories_cache = result
+            _categories_time  = time.time()
+            print("Categories cache refreshed")
+        except Exception as e:
+            print(f"Category cache refresh error: {e}")
+
+threading.Thread(target=refresh_categories_cache, daemon=True).start()
 
 # ─── Embedding Helper ─────────────────────────────────────────────────────────
 
