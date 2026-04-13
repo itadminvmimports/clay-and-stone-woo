@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+{% block title %}Checkout — Clay & Stone{% endblock %}
+
+{% block extra_styles %}
+.checkout-page { padding: 140px 48px 80px; max-width: 1000px; margin: 0 auto; }
+.checkout-page h1 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 42px; font-weight: 300; margin-bottom: 40px;
+}
+.checkout-grid { display: grid; grid-template-columns: 1fr 400px; gap: 60px; }
+.form-section h2 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 24px; font-weight: 300; margin-bottom: 24px;
+  padding-bottom: 12px; border-bottom: 1px solid var(--border);
+}
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.form-row.full { grid-template-columns: 1fr; }
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-group label { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+.form-group input {
+  padding: 12px 14px; border: 1px solid var(--border);
+  background: #fff; font-family: 'Jost', sans-serif;
+  font-size: 14px; color: var(--black); width: 100%;
+}
+.form-group input:focus { outline: none; border-color: var(--gold); }
+
+/* FTD card fields */
+.card-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+#ccnumber, #ccexpiry, #cccvv {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  background: #fff;
+  font-family: 'Jost', sans-serif;
+  font-size: 14px;
+  color: var(--black);
+  width: 100%;
+}
+#ccnumber:focus, #ccexpiry:focus, #cccvv:focus {
+  outline: none;
+  border-color: var(--gold);
+}
+#card-errors {
+  color: #c0392b;
+  font-size: 12px;
+  margin-top: 6px;
+  min-height: 18px;
+}
+
+.order-summary { background: var(--offwhite); padding: 32px; }
+.order-summary h2 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 22px; font-weight: 300; margin-bottom: 24px;
+}
+.order-item { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.order-item-name { color: var(--black); }
+.order-item-price { color: var(--muted); }
+.order-total { display: flex; justify-content: space-between; padding: 20px 0 0; font-family: 'Cormorant Garamond', serif; font-size: 22px; }
+.order-total span:last-child { color: var(--gold); }
+.brand-note { font-size: 11px; color: var(--muted); margin-top: 24px; line-height: 1.8; border-top: 1px solid var(--border); padding-top: 16px; }
+
+.btn-checkout {
+  display: block; width: 100%;
+  padding: 16px; text-align: center;
+  background: var(--black); color: #fff;
+  border: none; cursor: pointer;
+  font-family: 'Jost', sans-serif;
+  font-size: 12px; letter-spacing: 3px;
+  text-transform: uppercase;
+  transition: background 0.2s;
+  margin-top: 24px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.btn-checkout:hover { background: var(--gold); }
+.btn-checkout:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.error-msg {
+  background: #fdf0f0;
+  border: 1px solid #e8b4b4;
+  color: #c0392b;
+  padding: 12px 16px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+{% endblock %}
+
+{% block content %}
+<div class="checkout-page">
+  <h1>Checkout</h1>
+
+  {% if error %}
+  <div class="error-msg">{{ error }}</div>
+  {% endif %}
+
+  <div class="checkout-grid">
+    <div class="form-section">
+      <form id="checkout-form" method="POST">
+
+        <h2>Contact Information</h2>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Full Name</label>
+            <input type="text" name="name" id="name" required>
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" name="email" id="email" required>
+          </div>
+        </div>
+        <div class="form-row full">
+          <div class="form-group">
+            <label>Phone</label>
+            <input type="tel" name="phone">
+          </div>
+        </div>
+
+        <h2 style="margin-top:32px;">Shipping Address</h2>
+        <div class="form-row full">
+          <div class="form-group">
+            <label>Street Address</label>
+            <input type="text" name="address" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>City</label>
+            <input type="text" name="city" required>
+          </div>
+          <div class="form-group">
+            <label>State</label>
+            <input type="text" name="state" required>
+          </div>
+        </div>
+        <div class="form-row full">
+          <div class="form-group">
+            <label>ZIP Code</label>
+            <input type="text" name="zip" required>
+          </div>
+        </div>
+
+        <h2 style="margin-top:32px;">Payment</h2>
+        <div class="form-group" style="margin-bottom:16px;">
+          <label>Card Number</label>
+          <input type="tel" id="ccnumber" placeholder="•••• •••• •••• ••••" autocomplete="cc-number">
+        </div>
+        <div class="card-row">
+          <div class="form-group">
+            <label>Expiry</label>
+            <input type="tel" id="ccexpiry" placeholder="MM / YY" autocomplete="cc-exp">
+          </div>
+          <div class="form-group">
+            <label>CVV</label>
+            <input type="tel" id="cccvv" placeholder="•••" autocomplete="cc-csc">
+          </div>
+        </div>
+        <div id="card-errors"></div>
+
+        <!-- Hidden field populated by JS before submit -->
+        <input type="hidden" name="payment_token" id="payment_token">
+
+        <button type="button" id="submit-btn" class="btn-checkout">
+          Place Order
+        </button>
+
+      </form>
+    </div>
+
+    <div class="order-summary">
+      <h2>Order Summary</h2>
+      {% for item in cart %}
+      <div class="order-item">
+        <span class="order-item-name">{{ item.name }} × {{ item.qty }}</span>
+        <span class="order-item-price">${{ item.price * item.qty }}</span>
+      </div>
+      {% endfor %}
+      <div class="order-total">
+        <span>Total</span>
+        <span>${{ total }}</span>
+      </div>
+      <div class="brand-note">
+        Clay & Stone is a collection of Villa & Mission Imports.<br>
+        Your statement will show Villa & Mission Imports.<br>
+        1815 Morena Blvd, San Diego CA 92110 · 858-375-4556
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<!-- iPosPays Freedom to Design — replace YOUR_SECURITY_KEY with actual key from .env -->
+<script
+  id="ftd"
+  src="{{ ftd_url }}"
+  security_key="{{ ftd_security_key }}"
+  defer>
+</script>
+
+<script>
+  document.getElementById('submit-btn').addEventListener('click', async function() {
+    const btn = this;
+    const name  = document.getElementById('name').value;
+    const email = document.getElementById('email').value;
+
+    if (!name || !email) {
+      document.getElementById('card-errors').textContent = 'Please fill in your name and email.';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Processing...';
+
+    try {
+      // FTD tokenizes the card and returns a payment_token_id
+      const data_response = await postData();
+      const token = data_response.payment_token_id;
+
+      if (!token) {
+        throw new Error('Card tokenization failed. Please check your card details.');
+      }
+
+      document.getElementById('payment_token').value = token;
+      document.getElementById('checkout-form').submit();
+
+    } catch (error) {
+      document.getElementById('card-errors').textContent = error.message || 'Payment error. Please try again.';
+      btn.disabled = false;
+      btn.textContent = 'Place Order';
+    }
+  });
+</script>
+{% endblock %}

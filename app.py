@@ -6,6 +6,9 @@ import re
 import json
 import hmac
 import hashlib
+import html
+import uuid
+import time
 import logging
 import requests
 import urllib3
@@ -23,8 +26,25 @@ supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 WC_URL    = os.getenv("WC_URL")
 WC_KEY    = os.getenv("WC_KEY")
 WC_SECRET = os.getenv("WC_SECRET")
-WP_USER   = os.getenv("WP_USER")
-WP_PASS   = os.getenv("WP_APP_PASSWORD")
+
+# ─── iPosPays Config ──────────────────────────────────────────────────────────
+
+IPOSPAYS_API_KEY    = os.getenv("IPOSPAYS_API_KEY")      # V3 programmatic — optional for now
+IPOSPAYS_SECRET_KEY = os.getenv("IPOSPAYS_SECRET_KEY")   # V3 programmatic — optional for now
+IPOSPAYS_TPN        = os.getenv("IPOSPAYS_TPN")
+FTD_SECURITY_KEY    = os.getenv("FTD_SECURITY_KEY")      # Static eComm token from iPOSpays portal
+IPOSPAYS_ENV        = os.getenv("IPOSPAYS_ENV", "sandbox")
+
+if IPOSPAYS_ENV == "production":
+    IPOS_AUTH_URL     = "https://auth.ipospays.com/v1/authenticate-token"
+    IPOS_REFRESH_URL  = "https://auth.ipospays.com/v1/refresh-token"
+    IPOS_TRANSACT_URL = "https://payment.ipospays.com/api/v2/iposTransact"
+    FTD_URL           = "https://payment.ipospays.com/ftd/v1/freedomtodesign.js"
+else:
+    IPOS_AUTH_URL     = "https://auth.ipospays.tech/v1/authenticate-token"
+    IPOS_REFRESH_URL  = "https://auth.ipospays.tech/v1/refresh-token"
+    IPOS_TRANSACT_URL = "https://payment.ipospays.tech/api/v2/iposTransact"
+    FTD_URL           = "https://payment.ipospays.tech/ftd/v1/freedomtodesign.js"
 
 # ─── WooCommerce Helpers ──────────────────────────────────────────────────────
 
@@ -34,7 +54,6 @@ def wc_get(endpoint, params={}):
     r = requests.get(
         f"{WC_URL}/wp-json/wc/v3/{endpoint}",
         params=p,
-        
     )
     result = r.json()
     if isinstance(result, dict) and result.get("code"):
@@ -47,7 +66,6 @@ def wc_post(endpoint, data):
         f"{WC_URL}/wp-json/wc/v3/{endpoint}",
         params={"consumer_key": WC_KEY, "consumer_secret": WC_SECRET},
         json=data,
-        
     )
     result = r.json()
     if isinstance(result, dict) and result.get("code"):
@@ -60,8 +78,6 @@ def get_meta(meta_data, key):
 
 def normalize_product(p):
     description = re.sub(r"<[^>]+>", "", p.get("description") or p.get("short_description", "")).strip()
-    # LOCAL DEV ONLY — remove image proxy line before Kinsta deploy,
-    # replace with: image = p["images"][0]["src"] if p.get("images") else ""
     image = p["images"][0]["src"] if p.get("images") else ""
     return {
         "id":             p["id"],
@@ -79,18 +95,13 @@ def normalize_product(p):
 
 def get_products(category=None):
     params = {"per_page": 100, "status": "publish"}
-
-    # Always scope to Clay & Stone category on VM WooCommerce
     cs_cats = wc_get("products/categories", {"slug": "clay-and-stone"})
     if cs_cats and isinstance(cs_cats, list):
         params["category"] = cs_cats[0]["id"]
-
-    # Sub-category filter on top
     if category and category != "all":
         sub_cats = wc_get("products/categories", {"slug": category})
         if sub_cats and isinstance(sub_cats, list):
             params["category"] = sub_cats[0]["id"]
-
     return [normalize_product(p) for p in wc_get("products", params)]
 
 # ─── Embedding Helper ─────────────────────────────────────────────────────────
@@ -131,18 +142,6 @@ def img_url_filter(image):
         return image
     return f'/static/images/{image}'
 
-# CATEGORIES = {
-#     "all":        "All Pieces",
-#     "statement":  "Statement Vases",
-#     "glazed":     "Glazed Ceramic",
-#     "white":      "White Urns",
-#     "terracotta": "Terracotta & Garden",
-#     "berber":     "Berber Collection",
-#     "fountain":   "Fountains",
-# }
-
-import html
-
 def get_categories():
     cats = wc_get("products/categories", {
         "parent": 250,
@@ -156,29 +155,20 @@ def get_categories():
             result[c["slug"]] = html.unescape(c["name"])
     return result
 
-
 # ─── Public Routes ────────────────────────────────────────────────────────────
 
 @app.route("/")
 def index():
     return render_template("index.html", featured=get_products()[:3])
 
-# @app.route("/products")
-# def products():
-#     category = request.args.get("category", "all")
-#     return render_template("products.html",
-#                            products=get_products(category),
-#                            categories=CATEGORIES,
-#                            active=category)
 @app.route("/products")
 def products():
-    category = request.args.get("category", "all")
+    category   = request.args.get("category", "all")
     categories = get_categories()
     return render_template("products.html",
                            products=get_products(category),
                            categories=categories,
                            active=category)
-
 
 @app.route("/product/<int:product_id>")
 def product(product_id):
@@ -312,6 +302,131 @@ def cart_data():
     cart = session.get("cart", [])
     return jsonify({"cart": cart})
 
+# ─── iPosPays Token Manager ───────────────────────────────────────────────────
+# Uses static FTD_SECURITY_KEY from portal if IPOSPAYS_API_KEY is not set.
+# When Dejavoo provides proper apiKey + secretKey, the programmatic path
+# takes over automatically — just add them to .env.
+
+_ipos_token        = None
+_ipos_token_expiry = 0
+
+def get_ipos_token():
+    """
+    Returns a valid iPosPays auth token.
+    - If IPOSPAYS_API_KEY + IPOSPAYS_SECRET_KEY are set: generates/refreshes
+      programmatically via the V3 auth API.
+    - Otherwise: falls back to the static FTD_SECURITY_KEY from the portal.
+    """
+    global _ipos_token, _ipos_token_expiry
+
+    # ── Static fallback (portal-generated eComm token) ────────────────────────
+    if not IPOSPAYS_API_KEY or not IPOSPAYS_SECRET_KEY:
+        if FTD_SECURITY_KEY:
+            return FTD_SECURITY_KEY
+        print("iPosPays: no credentials available — set FTD_SECURITY_KEY or IPOSPAYS_API_KEY + IPOSPAYS_SECRET_KEY")
+        return None
+
+    # ── Programmatic path (V3 auth API) ───────────────────────────────────────
+    now = time.time()
+
+    # Token still has more than 30 min left — use as-is
+    if _ipos_token and now < (_ipos_token_expiry - 1800):
+        return _ipos_token
+
+    # Token is in the 30-min grace window — try to refresh
+    if _ipos_token and now < _ipos_token_expiry:
+        try:
+            r    = requests.post(IPOS_REFRESH_URL,
+                                 json={"refreshToken": True, "token": _ipos_token},
+                                 timeout=10)
+            data = r.json()
+            if data.get("responseCode") == "00":
+                _ipos_token        = data["token"]
+                _ipos_token_expiry = now + 86400
+                print("iPosPays token refreshed")
+                return _ipos_token
+        except Exception as e:
+            print(f"iPosPays token refresh error: {e}")
+        # Fall through to generate fresh if refresh failed
+
+    # Generate a brand new token
+    try:
+        r    = requests.post(IPOS_AUTH_URL,
+                             json={"apiKey":    IPOSPAYS_API_KEY,
+                                   "secretKey": IPOSPAYS_SECRET_KEY,
+                                   "scope":     "PaymentTokenization"},
+                             timeout=10)
+        data = r.json()
+        if data.get("responseCode") == "00":
+            _ipos_token        = data["token"]
+            _ipos_token_expiry = now + 86400
+            print("iPosPays token generated")
+            return _ipos_token
+        else:
+            print(f"iPosPays token generation failed: {data}")
+            return None
+    except Exception as e:
+        print(f"iPosPays token generation error: {e}")
+        return None
+
+# ─── iPosPays Charge ──────────────────────────────────────────────────────────
+
+def ipospays_charge(payment_token_id, amount_dollars, customer_name, customer_email):
+    """
+    Charge via iPosPays Transact API using a paymentTokenId from FTD.
+    amount_dollars: int or float e.g. 380
+    Returns (success: bool, response: dict)
+    """
+    global _ipos_token_expiry
+
+    auth_token = get_ipos_token()
+    if not auth_token:
+        return False, {"error": "Could not obtain iPosPays auth token"}
+
+    # Amount in cents as string — e.g. $380 → "38000"
+    amount_cents = str(int(round(amount_dollars * 100)))
+
+    # Unique reference ID per transaction — max 20 chars alphanumeric
+    ref_id = uuid.uuid4().hex[:20]
+
+    headers = {
+        "token":        auth_token,
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "merchantAuthentication": {
+            "merchantId":             IPOSPAYS_TPN,
+            "transactionReferenceId": ref_id,
+        },
+        "transactionRequest": {
+            "transactionType":            1,       # Sale
+            "amount":                     amount_cents,
+            "paymentTokenId":             payment_token_id,
+            "applySteamSettingTipFeeTax": False,
+        },
+        "preferences": {
+            "eReceipt":      True,
+            "customerName":  customer_name,
+            "customerEmail": customer_email,
+        },
+    }
+
+    try:
+        r      = requests.post(IPOS_TRANSACT_URL, json=payload, headers=headers, timeout=30)
+        result = r.json()
+
+        # Force token refresh on next call if server signals expiry
+        if r.headers.get("AuthenticationRefreshRequired") == "true":
+            _ipos_token_expiry = 0
+
+        resp    = result.get("iposTransactResponse", {})
+        success = resp.get("responseCode") == "200"
+        return success, result
+
+    except Exception as e:
+        print(f"iPosPays charge error: {e}")
+        return False, {}
+
 # ─── Checkout ─────────────────────────────────────────────────────────────────
 
 @app.route("/checkout", methods=["GET", "POST"])
@@ -321,63 +436,80 @@ def checkout():
         return redirect(url_for("products"))
     total = sum(i["price"] * i["qty"] for i in cart)
 
+    ftd_security_key = get_ipos_token()
+
     if request.method == "POST":
-        name    = request.form.get("name", "")
-        email   = request.form.get("email", "")
-        phone   = request.form.get("phone", "")
-        address = request.form.get("address", "")
-        city    = request.form.get("city", "")
-        state   = request.form.get("state", "")
-        zip_    = request.form.get("zip", "")
+        name          = request.form.get("name", "")
+        email         = request.form.get("email", "")
+        phone         = request.form.get("phone", "")
+        address       = request.form.get("address", "")
+        city          = request.form.get("city", "")
+        state         = request.form.get("state", "")
+        zip_          = request.form.get("zip", "")
+        payment_token = request.form.get("payment_token", "")
 
-        # Split name into first/last for WooCommerce
-        name_parts  = name.strip().split(" ", 1)
-        first_name  = name_parts[0]
-        last_name   = name_parts[1] if len(name_parts) > 1 else ""
+        if not payment_token:
+            return render_template("checkout-ipospays.html", cart=cart, total=total,
+                                   ftd_url=FTD_URL, ftd_security_key=ftd_security_key,
+                                   error="Payment tokenization failed. Please try again.")
 
-        # Build WooCommerce order payload
+        # Charge via iPosPays
+        success, response = ipospays_charge(
+            payment_token_id=payment_token,
+            amount_dollars=total,
+            customer_name=name,
+            customer_email=email,
+        )
+
+        if not success:
+            resp      = response.get("iposTransactResponse", {})
+            error_msg = resp.get("errResponseMessage") or "Payment declined. Please try again or call us at 858-375-4556."
+            return render_template("checkout-ipospays.html", cart=cart, total=total,
+                                   ftd_url=FTD_URL, ftd_security_key=ftd_security_key,
+                                   error=error_msg)
+
+        transaction_id = response.get("iposTransactResponse", {}).get("transactionId", "")
+
+        # Create WooCommerce order
+        name_parts = name.strip().split(" ", 1)
+        first_name = name_parts[0]
+        last_name  = name_parts[1] if len(name_parts) > 1 else ""
+
         order_data = {
-            "payment_method":       "cod",
-            "payment_method_title": "Pay on Delivery",
-            "set_paid":             False,
+            "payment_method":       "ipospays",
+            "payment_method_title": "Credit Card",
+            "set_paid":             True,
             "status":               "processing",
             "billing": {
-                "first_name": first_name,
-                "last_name":  last_name,
-                "address_1":  address,
-                "city":       city,
-                "state":      state,
-                "postcode":   zip_,
-                "country":    "US",
-                "email":      email,
+                "first_name": first_name, "last_name": last_name,
+                "address_1":  address,    "city":      city,
+                "state":      state,      "postcode":  zip_,
+                "country":    "US",       "email":     email,
                 "phone":      phone,
             },
             "shipping": {
-                "first_name": first_name,
-                "last_name":  last_name,
-                "address_1":  address,
-                "city":       city,
-                "state":      state,
-                "postcode":   zip_,
+                "first_name": first_name, "last_name": last_name,
+                "address_1":  address,    "city":      city,
+                "state":      state,      "postcode":  zip_,
                 "country":    "US",
             },
             "line_items": [
-                {
-                    "product_id": item["product_id"],
-                    "quantity":   item["qty"],
-                }
+                {"product_id": item["product_id"], "quantity": item["qty"]}
                 for item in cart
             ],
-            "customer_note": "Order placed via Clay & Stone",
+            "customer_note": f"iPosPays Transaction ID: {transaction_id}",
         }
 
         order = wc_post("orders", order_data)
 
         if not order:
-            return render_template("checkout.html", cart=cart, total=total,
-                                   error="There was a problem placing your order. Please call us at 858-375-4556.")
+            print(f"WooCommerce order failed — iPosPays already charged: {transaction_id}")
+            return render_template("checkout-ipospays.html", cart=cart, total=total,
+                                   ftd_url=FTD_URL, ftd_security_key=ftd_security_key,
+                                   error=f"Payment succeeded but order creation failed. "
+                                         f"Please call us at 858-375-4556 with reference: {transaction_id}")
 
-        # Send confirmation email via Resend
+        # Send confirmation emails
         try:
             import resend
             resend.api_key = os.getenv("RESEND_API_KEY")
@@ -386,32 +518,31 @@ def checkout():
                 for i in cart
             )
             resend.Emails.send({
-                "from":     "orders@claynstone.com",
+                "from":    "orders@claynstone.com",
                 "to":      email,
                 "subject": "Your Clay & Stone Order",
                 "html":    f"""
                     <h2>Thank you for your order!</h2>
-                    <p>We'll be in touch to confirm delivery details.</p>
+                    <p>Your payment has been processed successfully.</p>
                     <ul>{items_html}</ul>
                     <p><strong>Total: ${total}</strong></p>
-                    <p><em>Payment is due on delivery.</em></p>
                     <p>Clay & Stone — a collection of Villa &amp; Mission Imports<br>
                     1815 Morena Blvd, San Diego CA 92110 · 858-375-4556</p>
                 """
             })
-            # Notify Pierre
             resend.Emails.send({
-                "from":      "orders@claynstone.com",
+                "from":    "orders@claynstone.com",
                 "to":      os.getenv("INQUIRY_EMAIL", "asif.shakeel@gmail.com"),
                 "subject": f"New Order — {name} (#{order.get('id', '')})",
                 "html":    f"""
-                    <h2>New Clay & Stone order</h2>
+                    <h2>New Clay & Stone order — PAID</h2>
                     <p><strong>Customer:</strong> {name}</p>
                     <p><strong>Email:</strong> {email}</p>
                     <p><strong>Phone:</strong> {phone}</p>
                     <p><strong>Address:</strong> {address}, {city}, {state} {zip_}</p>
                     <ul>{items_html}</ul>
                     <p><strong>Total: ${total}</strong></p>
+                    <p><strong>iPosPays Transaction ID:</strong> {transaction_id}</p>
                     <p><strong>WooCommerce order ID:</strong> #{order.get('id', '')}</p>
                 """
             })
@@ -422,7 +553,8 @@ def checkout():
         session["last_order_id"] = order.get("id")
         return redirect(url_for("order_confirmation"))
 
-    return render_template("checkout.html", cart=cart, total=total)
+    return render_template("checkout-ipospays.html", cart=cart, total=total,
+                           ftd_url=FTD_URL, ftd_security_key=ftd_security_key)
 
 @app.route("/order-confirmation")
 def order_confirmation():
@@ -498,11 +630,33 @@ def woo_product_deleted():
         print(f"Removed embedding for product id: {product_id}")
     return jsonify({"status": "ok"})
 
-# DEV ONLY — remove before Kinsta deploy
+# DEV ONLY — remove before deploy
 @app.route("/cart/clear")
 def cart_clear():
     session["cart"] = []
     return redirect(url_for("cart"))
+
+@app.route("/test-ipos-token")
+def test_ipos_token():
+    token = get_ipos_token()
+    return jsonify({
+        "token":          token[:20] + "..." if token else None,
+        "source":         "static" if (not IPOSPAYS_API_KEY and token) else "programmatic",
+        "api_key_set":    bool(IPOSPAYS_API_KEY),
+        "secret_key_set": bool(IPOSPAYS_SECRET_KEY),
+        "tpn_set":        bool(IPOSPAYS_TPN),
+        "ftd_key_set":    bool(FTD_SECURITY_KEY),
+        "env":            IPOSPAYS_ENV,
+    })
+
+@app.route("/test-ipos-auth")
+def test_ipos_auth():
+    return jsonify({
+        "api_key_raw":    repr(IPOSPAYS_API_KEY),
+        "secret_key_raw": repr(IPOSPAYS_SECRET_KEY),
+        "tpn_raw":        repr(IPOSPAYS_TPN),
+    })
+
 # ─── Run ──────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
