@@ -657,6 +657,16 @@ def test_ipos_auth():
         "tpn_raw":        repr(IPOSPAYS_TPN),
     })
 
+@app.route("/test-ipos-charge")
+def test_ipos_charge():
+    success, response = ipospays_charge(
+        payment_token_id="test_fake_token",
+        amount_dollars=1,
+        customer_name="Test User",
+        customer_email="test@test.com"
+    )
+    return jsonify({"success": success, "response": response})
+
 # ─── Run ──────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
