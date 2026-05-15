@@ -207,12 +207,14 @@
 
       <hr class="divider">
 
-<div class="cta-section">
-<button class="btn-primary" onclick="addToCart()">Add to Cart</button>
-  <a href="tel:8583754556" class="btn-secondary" style="margin-top:12px;">
-    Call Us — 858-375-4556
-  </a>
-</div>
+      <div class="cta-section">
+        <a href="{{ wc_store }}/cart/?add-to-cart={{ product.id }}" class="btn-primary">
+          Add to Cart
+        </a>
+        <a href="tel:8583754556" class="btn-secondary" style="margin-top:12px;">
+          Call Us — 858-375-4556
+        </a>
+      </div>
 
       <hr class="divider">
 
@@ -243,29 +245,7 @@
 {% endblock %}
 
 {% block extra_scripts %}
-
 <script>
-
-  async function addToCart() {
-  const res = await fetch('/cart/add', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      product_id: {{ product.id }},
-      name:       "{{ product.name }}",
-      price:      {{ product.price }},
-      image:      "{{ product.image }}",
-    })
-  });
-  const data = await res.json();
-  if (data.status === 'ok') {
-    // Update cart count in nav if present
-    const badge = document.getElementById('cart-count');
-    if (badge) badge.textContent = data.count;
-    window.location.href = '/cart';
-  }
-}
-
 async function submitInquiry() {
   const name  = document.getElementById('inq-name').value;
   const email = document.getElementById('inq-email').value;
@@ -288,7 +268,6 @@ async function submitInquiry() {
   alert('Thank you! We\'ll be in touch within 24 hours.');
 }
 
-// Close modal on overlay click
 document.getElementById('inquiryModal').addEventListener('click', function(e) {
   if (e.target === this) this.classList.remove('open');
 });
